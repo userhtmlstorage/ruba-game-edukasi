@@ -1,0 +1,6 @@
+{
+  "name": "RuBa — Ruang Belajar",
+  "description": "Aplikasi game edukasi interaktif anak usia 3-6 tahun bersama Bobi si Rubah dengan 9 modul pembelajaran seru.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
