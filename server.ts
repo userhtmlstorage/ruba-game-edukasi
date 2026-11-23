@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import crypto from 'crypto';
 import express from 'express';
 import fs from 'fs';
@@ -6,6 +6,9 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+
+dotenv.config({ path: '.env.local', override: false });
+dotenv.config({ override: false });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,7 +18,7 @@ const isProd = process.env.NODE_ENV === 'production';
 
 let aiClient: GoogleGenAI | null = null;
 function getAiClient(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '').trim();
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') return null;
   if (!aiClient) {
     aiClient = new GoogleGenAI({
@@ -346,11 +349,14 @@ async function createServer() {
     }
 
     if (!wavBuffer) {
-      const message = lastError instanceof Error ? lastError.message : 'TTS generation failed';
-      console.error('[RuBa TTS Error]', message);
-      const isQuota = /429|RESOURCE_EXHAUSTED|quota/i.test(message);
+      const rawMessage = lastError instanceof Error ? lastError.message : 'TTS generation failed';
+      const isQuota = /429|RESOURCE_EXHAUSTED|quota/i.test(rawMessage);
+      const safeLog = rawMessage.replace(/AIza[0-9A-Za-z_-]{20,}/g, '[REDACTED]');
+      console.error('[RuBa TTS Error]', safeLog);
       res.status(isQuota ? 429 : 500).json({
-        error: message,
+        error: isQuota
+          ? 'Kuota suara neural sedang penuh sementara.'
+          : 'Layanan suara neural sedang tidak tersedia.',
         quotaExhausted: isQuota,
       });
       return;

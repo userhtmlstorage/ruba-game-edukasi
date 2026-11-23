@@ -1,4 +1,8 @@
 import { SongNote } from '../types';
+import {
+  hasGeminiClientKey,
+  synthesizeSpeechFromClientEnv,
+} from '../services/geminiService';
 
 type SpeechListener = (speaking: boolean, text: string) => void;
 type SpeechTone = 'cheerful' | 'gentle' | 'excited';
@@ -219,12 +223,6 @@ class RuBaAudioEngine {
     tone: SpeechTone,
     signal?: AbortSignal
   ): Promise<ArrayBuffer | null> {
-    const endpoint = this.resolveTtsEndpoint();
-    if (!endpoint) {
-      this.neuralTtsAvailable = false;
-      return null;
-    }
-
     const cacheKey = `${tone}:${text}`;
     const existingBuffer = this.audioBufferCache.get(cacheKey);
     if (existingBuffer) return existingBuffer;
@@ -232,54 +230,77 @@ class RuBaAudioEngine {
     const inFlight = this.pendingFetches.get(cacheKey);
     if (inFlight && !signal) return inFlight;
 
+    const endpoint = this.resolveTtsEndpoint();
+
     const fetchPromise = (async () => {
       try {
-        for (let attempt = 0; attempt < 2; attempt++) {
-          if (signal?.aborted) return null;
+        if (endpoint) {
+          for (let attempt = 0; attempt < 2; attempt++) {
+            if (signal?.aborted) return null;
 
-          const timeoutCtrl = new AbortController();
-          const timeoutId = setTimeout(() => timeoutCtrl.abort(), 8500);
-          const onCallerAbort = () => timeoutCtrl.abort();
-          signal?.addEventListener('abort', onCallerAbort, { once: true });
+            const timeoutCtrl = new AbortController();
+            const timeoutId = setTimeout(() => timeoutCtrl.abort(), 8500);
+            const onCallerAbort = () => timeoutCtrl.abort();
+            signal?.addEventListener('abort', onCallerAbort, { once: true });
 
-          try {
-            const res = await fetch(endpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ text, tone }),
-              signal: timeoutCtrl.signal,
-            });
+            try {
+              const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, tone }),
+                signal: timeoutCtrl.signal,
+              });
 
-            if (res.ok) {
-              const buffer = await res.arrayBuffer();
-              if (!buffer.byteLength) return null;
-              this.audioBufferCache.set(cacheKey, buffer);
-              return buffer;
+              if (res.ok) {
+                const buffer = await res.arrayBuffer();
+                if (!buffer.byteLength) return null;
+                this.audioBufferCache.set(cacheKey, buffer);
+                return buffer;
+              }
+
+              if (res.status === 503 || res.status === 404) {
+                break;
+              }
+
+              if (res.status === 429) {
+                this.neuralCooldownUntil = Date.now() + 15000;
+                break;
+              }
+
+              if (attempt === 0 && res.status >= 500) {
+                await new Promise((r) => setTimeout(r, 250));
+                continue;
+              }
+
+              break;
+            } finally {
+              clearTimeout(timeoutId);
+              signal?.removeEventListener('abort', onCallerAbort);
             }
-
-            if (res.status === 503 || res.status === 404) {
-              this.neuralTtsAvailable = false;
-              return null;
-            }
-
-            if (res.status === 429) {
-              this.neuralCooldownUntil = Date.now() + 15000;
-              return null;
-            }
-
-            if (attempt === 0 && res.status >= 500) {
-              await new Promise((r) => setTimeout(r, 250));
-              continue;
-            }
-
-            return null;
-          } finally {
-            clearTimeout(timeoutId);
-            signal?.removeEventListener('abort', onCallerAbort);
           }
+        }
+
+        // Centralized client-env Gemini helper (import.meta.env.VITE_GEMINI_API_KEY) for static APK / client builds
+        if (!signal?.aborted && hasGeminiClientKey()) {
+          const clientBuffer = await synthesizeSpeechFromClientEnv(text, tone);
+          if (clientBuffer && clientBuffer.byteLength > 0) {
+            this.audioBufferCache.set(cacheKey, clientBuffer);
+            return clientBuffer;
+          }
+        }
+
+        if (!endpoint && !hasGeminiClientKey()) {
+          this.neuralTtsAvailable = false;
         }
         return null;
       } catch {
+        if (!signal?.aborted && hasGeminiClientKey()) {
+          const clientBuffer = await synthesizeSpeechFromClientEnv(text, tone);
+          if (clientBuffer && clientBuffer.byteLength > 0) {
+            this.audioBufferCache.set(cacheKey, clientBuffer);
+            return clientBuffer;
+          }
+        }
         return null;
       } finally {
         this.pendingFetches.delete(cacheKey);

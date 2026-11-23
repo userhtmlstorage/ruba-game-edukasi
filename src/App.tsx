@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import {
   ArrowLeft,
   BookOpen,
@@ -21,7 +22,14 @@ import {
   STICKERS,
   WARNA_QUESTIONS,
 } from './data/gameData';
-import { BobiMood, CostumeId, GameScreen, IllustrationKey, ModuleId } from './types';
+import {
+  BobiMood,
+  CostumeId,
+  GameScreen,
+  IllustrationKey,
+  ModuleId,
+  ModuleMeta,
+} from './types';
 import { audioEngine } from './utils/audioEngine';
 import { BobiCharacter } from './components/BobiCharacter';
 import { ConfettiBurst } from './components/ConfettiBurst';
@@ -35,6 +43,13 @@ import { LaguModuleView } from './components/modules/LaguModuleView';
 import { QuizModuleView } from './components/modules/QuizModuleView';
 import { SainsModuleView } from './components/modules/SainsModuleView';
 import { ChildSafeAdBannerSlot, TestInterstitialModal } from './components/AdMobComponents';
+import {
+  DoorTransitionOverlay,
+  NavTransitionMode,
+  hubScreenVariants,
+  moduleScreenVariants,
+  titleScreenVariants,
+} from './components/ScreenTransitions';
 import { useViewportSize } from './hooks/useViewportSize';
 import { AdPlacementContext, admobService } from './services/admobService';
 
@@ -107,6 +122,12 @@ export default function App() {
   const [newlyUnlockedCostumeName, setNewlyUnlockedCostumeName] = useState<string | null>(null);
   const [logoError, setLogoError] = useState<boolean>(false);
   const [showTestInterstitial, setShowTestInterstitial] = useState<boolean>(false);
+  const [navMode, setNavMode] = useState<NavTransitionMode>('welcome');
+  const [doorOverlay, setDoorOverlay] = useState<{
+    key: number;
+    moduleMeta: ModuleMeta | null;
+    iconKey: IllustrationKey | null;
+  }>({ key: 0, moduleMeta: null, iconKey: null });
 
   useEffect(() => {
     try {
@@ -146,6 +167,8 @@ export default function App() {
   };
 
   const handleStartFromTitle = useCallback(() => {
+    setNavMode('welcome');
+    setDoorOverlay((prev) => ({ ...prev, moduleMeta: null, iconKey: null }));
     setScreen('HUB');
     setBobiMood('happy');
     const welcome = 'Selamat datang di Pintu Masuk RuBa! Pilih modul belajar mana yang kamu suka?';
@@ -168,6 +191,13 @@ export default function App() {
   const handleOpenModule = (modId: ModuleId) => {
     audioEngine.unlock();
     audioEngine.playTap();
+    const targetMeta = MODULES.find((m) => m.id === modId) || null;
+    setNavMode('enter-module');
+    setDoorOverlay((prev) => ({
+      key: prev.key + 1,
+      moduleMeta: targetMeta,
+      iconKey: MODULE_PREVIEW_ICON[modId],
+    }));
     setActiveModule(modId);
     setModuleSessionKey((k) => k + 1);
     setRoundSummaryModule(null);
@@ -180,6 +210,8 @@ export default function App() {
     audioEngine.stopSong();
     audioEngine.stopSpeech();
     audioEngine.playTap();
+    setNavMode('hop-hub');
+    setDoorOverlay((prev) => ({ ...prev, moduleMeta: null, iconKey: null }));
     setActiveModule(null);
     setRoundSummaryModule(null);
     setScreen('HUB');
@@ -288,19 +320,27 @@ export default function App() {
   ).length;
 
   return (
-    <div className="relative m-0 p-0 flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-gradient-to-b from-sky-300 via-sky-100 to-amber-50">
-      {/* Living Nature Backdrop */}
-      <NatureBackground />
+    <MotionConfig reducedMotion="user">
+      <div className="relative m-0 p-0 flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-gradient-to-b from-sky-300 via-sky-100 to-amber-50">
+        {/* Living Nature Backdrop */}
+        <NatureBackground />
 
-      {/* 60fps Confetti Canvas */}
-      <ConfettiBurst triggerKey={confettiKey} />
+        {/* 60fps Confetti Canvas */}
+        <ConfettiBurst triggerKey={confettiKey} />
 
-      {/* TITLE SCREEN */}
-      {screen === 'TITLE' && (
-        <main
-          onClick={handleStartFromTitle}
-          className="relative z-20 flex min-h-[100dvh] w-full flex-col items-center justify-center px-3 py-3 sm:px-6 sm:py-5 overflow-y-auto scroll-touch cursor-pointer"
-        >
+        {/* Screen Transitions: Pintu Terbuka ke Modul & Melompat ke Menu Utama */}
+        <AnimatePresence mode="wait" custom={navMode}>
+          {/* TITLE SCREEN */}
+          {screen === 'TITLE' && (
+            <motion.main
+              key="TITLE"
+              variants={titleScreenVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              onClick={handleStartFromTitle}
+              className="relative z-20 flex min-h-[100dvh] w-full flex-col items-center justify-center px-3 py-3 sm:px-6 sm:py-5 overflow-y-auto scroll-touch cursor-pointer"
+            >
           <div
             className={`grid w-full ${
               useLandscapeSplit ? 'grid-cols-12' : 'grid-cols-1 sm:grid-cols-12'
@@ -368,13 +408,15 @@ export default function App() {
               </p>
 
               <div className="mt-1 flex flex-wrap items-center gap-3">
-                <button
+                <motion.button
                   type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.96, y: 2 }}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleStartFromTitle();
                   }}
-                  className={`relative z-30 flex items-center gap-2.5 rounded-2xl sm:rounded-3xl border-emerald-700 bg-emerald-500 font-display font-bold text-white shadow-lg transition-transform hover:scale-105 active:translate-y-0.5 focus-visible:outline-4 focus-visible:outline-sky-500 ${
+                  className={`relative z-30 flex items-center gap-2.5 rounded-2xl sm:rounded-3xl border-emerald-700 bg-emerald-500 font-display font-bold text-white shadow-lg focus-visible:outline-4 focus-visible:outline-sky-500 ${
                     isPhone
                       ? 'min-h-[44px] border-2 border-b-4 px-5 py-2 text-lg'
                       : 'min-h-[60px] border-4 border-b-8 px-8 py-4 text-2xl sm:text-3xl'
@@ -382,7 +424,7 @@ export default function App() {
                 >
                   <Play className={`${isPhone ? 'h-5 w-5' : 'h-8 w-8'} fill-white shrink-0`} />
                   <span>Mulai Belajar</span>
-                </button>
+                </motion.button>
               </div>
 
               <p className="text-[11px] sm:text-sm font-bold text-slate-500">
@@ -390,12 +432,18 @@ export default function App() {
               </p>
             </div>
           </div>
-        </main>
+        </motion.main>
       )}
 
       {/* HUB SCREEN (PINTU MASUK) */}
       {screen === 'HUB' && (
-        <div
+        <motion.div
+          key="HUB"
+          custom={navMode}
+          variants={hubScreenVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
           className={`relative z-20 flex w-full flex-col ${
             useLandscapeSplit
               ? 'h-[100dvh] overflow-hidden'
@@ -555,14 +603,24 @@ export default function App() {
                 useLandscapeSplit ? 'col-span-9 grid-cols-3 overflow-y-auto scroll-touch' : 'grid-cols-2'
               } grid ${isPhone ? 'gap-2' : 'gap-3'} min-h-0 pr-1 pb-1 custom-scroll`}
             >
-              {MODULES.map((mod) => {
+              {MODULES.map((mod, idx) => {
                 const isDone = progress.completedModules.includes(mod.id);
                 return (
-                  <button
+                  <motion.button
                     key={mod.id}
                     type="button"
+                    initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{
+                      delay: 0.025 * idx,
+                      type: 'spring',
+                      stiffness: 340,
+                      damping: 24,
+                    }}
+                    whileHover={{ y: -4, scale: 1.02 }}
+                    whileTap={{ scale: 0.96, y: 2 }}
                     onClick={() => handleOpenModule(mod.id)}
-                    className={`group relative flex flex-col items-center justify-center ${mod.cardBg} ${mod.cardBorder} text-center shadow-md transition-transform duration-150 hover:-translate-y-1 active:translate-y-0.5 focus-visible:outline-4 focus-visible:outline-sky-500 ${
+                    className={`group relative flex flex-col items-center justify-center ${mod.cardBg} ${mod.cardBorder} text-center shadow-md focus-visible:outline-4 focus-visible:outline-sky-500 ${
                       isPhone
                         ? 'min-h-[clamp(5.25rem,22dvh,7.25rem)] gap-1 rounded-2xl border-2 border-b-4 p-2'
                         : 'min-h-[clamp(7rem,23dvh,9rem)] gap-1.5 rounded-3xl border-4 border-b-8 p-3.5'
@@ -608,7 +666,7 @@ export default function App() {
                     >
                       {mod.shortDesc}
                     </p>
-                  </button>
+                  </motion.button>
                 );
               })}
             </section>
@@ -616,12 +674,17 @@ export default function App() {
 
           {/* Dedicated bottom safe area for HUB-only child-safe banner */}
           <ChildSafeAdBannerSlot />
-        </div>
+        </motion.div>
       )}
 
       {/* ACTIVE MODULE GAMEPLAY SHELL */}
       {screen === 'MODULE' && activeModuleMeta && (
-        <div
+        <motion.div
+          key="MODULE"
+          variants={moduleScreenVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
           className={`relative z-20 flex w-full flex-col ${
             useLandscapeSplit
               ? 'h-[100dvh] overflow-hidden'
@@ -849,13 +912,39 @@ export default function App() {
               )}
             </main>
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
+
+      {/* NON-BLOCKING STORYBOOK DOOR OVERLAY WHEN ENTERING MODULE */}
+      <DoorTransitionOverlay
+        doorKey={doorOverlay.key}
+        moduleMeta={doorOverlay.moduleMeta}
+        iconKey={doorOverlay.iconKey}
+        onComplete={() =>
+          setDoorOverlay((prev) => ({ ...prev, moduleMeta: null, iconKey: null }))
+        }
+      />
 
       {/* ROUND SUMMARY / VICTORY MODAL */}
+      <AnimatePresence>
       {roundSummaryModule && activeModuleMeta && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-2 sm:p-4 backdrop-blur-sm">
-          <div className="flex max-h-[92dvh] w-full max-w-lg flex-col items-center gap-3 sm:gap-4 rounded-[2rem] border-4 border-amber-300 bg-[#FFFDF7] p-4 sm:p-6 text-center shadow-2xl scroll-touch">
+        <motion.div
+          key="round-summary-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-2 sm:p-4 backdrop-blur-sm"
+        >
+          <motion.div
+            key="round-summary-card"
+            initial={{ opacity: 0, scale: 0.85, y: 24 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 16 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+            className="flex max-h-[92dvh] w-full max-w-lg flex-col items-center gap-3 sm:gap-4 rounded-[2rem] border-4 border-amber-300 bg-[#FFFDF7] p-4 sm:p-6 text-center shadow-2xl scroll-touch"
+          >
             <BobiCharacter
               mood="dancing"
               costume={progress.selectedCostume}
@@ -906,9 +995,10 @@ export default function App() {
                 Pilih Modul Lain
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* LEMARI KOSTUM MODAL */}
       {showWardrobe && (
@@ -936,6 +1026,7 @@ export default function App() {
         visible={showTestInterstitial}
         onClose={() => setShowTestInterstitial(false)}
       />
-    </div>
+      </div>
+    </MotionConfig>
   );
 }
