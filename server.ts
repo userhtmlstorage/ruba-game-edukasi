@@ -254,6 +254,17 @@ async function createServer() {
   const app = express();
   app.use(express.json({ limit: '64kb' }));
 
+  app.use('/api/tts', (_req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    next();
+  });
+
+  app.options('/api/tts', (_req, res) => {
+    res.sendStatus(204);
+  });
+
   app.post('/api/tts', async (req, res) => {
     const rawText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
     const tone =

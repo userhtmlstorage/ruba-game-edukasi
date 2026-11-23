@@ -3,6 +3,38 @@ import { SongNote } from '../types';
 type SpeechListener = (speaking: boolean, text: string) => void;
 type SpeechTone = 'cheerful' | 'gentle' | 'excited';
 
+const SILENT_WAV_DATA_URI =
+  'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+interface NativeTtsBridge {
+  Capacitor?: {
+    Plugins?: {
+      TextToSpeech?: {
+        speak?: (opts: { text: string; lang?: string; rate?: number; pitch?: number }) => Promise<void>;
+        stop?: () => Promise<void>;
+      };
+    };
+  };
+  TTS?: {
+    speak?: (
+      opts: { text: string; locale?: string; rate?: number },
+      onSuccess?: () => void,
+      onError?: (err: unknown) => void
+    ) => void;
+    stop?: () => void;
+  };
+}
+
 class RuBaAudioEngine {
   private ctx: AudioContext | null = null;
   private bgmMuted: boolean = false;
@@ -17,22 +49,53 @@ class RuBaAudioEngine {
 
   // Natural Neural TTS playback & caching state
   private audioBufferCache: Map<string, ArrayBuffer> = new Map();
-  private audioUrlCache: Map<string, string> = new Map();
+  private audioDataUriCache: Map<string, string> = new Map();
   private pendingFetches: Map<string, Promise<ArrayBuffer | null>> = new Map();
   private activeSourceNode: AudioBufferSourceNode | null = null;
-  private activeAudioEl: HTMLAudioElement | null = null;
+  private sharedAudioEl: HTMLAudioElement | null = null;
+  private audioElUnlocked: boolean = false;
+  private webAudioUnlocked: boolean = false;
   private activeAbortController: AbortController | null = null;
+  private activeUtterance: SpeechSynthesisUtterance | null = null;
+  private fallbackDelayTimer: number | null = null;
   private speakSeqId: number = 0;
   private neuralTtsAvailable: boolean = true;
   private neuralCooldownUntil: number = 0;
 
   constructor() {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      this.loadVoices();
-      window.speechSynthesis.onvoiceschanged = () => {
+    if (typeof window !== 'undefined') {
+      if ('speechSynthesis' in window) {
         this.loadVoices();
+        window.speechSynthesis.onvoiceschanged = () => {
+          this.loadVoices();
+        };
+      }
+
+      // Automatically unlock mobile WebView / iOS PWA audio on the user's very first interaction anywhere
+      const autoUnlock = () => {
+        this.unlock();
       };
+      window.addEventListener('touchstart', autoUnlock, { capture: true, passive: true });
+      window.addEventListener('pointerdown', autoUnlock, { capture: true, passive: true });
+      window.addEventListener('mousedown', autoUnlock, { capture: true, passive: true });
+      window.addEventListener('keydown', autoUnlock, { capture: true, passive: true });
     }
+  }
+
+  private resolveTtsEndpoint(): string | null {
+    const envUrl =
+      typeof import.meta !== 'undefined'
+        ? (import.meta as unknown as { env?: { VITE_TTS_API_URL?: string } }).env?.VITE_TTS_API_URL?.trim()
+        : undefined;
+    if (envUrl) return envUrl;
+
+    if (typeof window === 'undefined') return '/api/tts';
+    const proto = window.location?.protocol || '';
+    if (proto === 'file:' || proto === 'capacitor:' || proto === 'ionic:' || proto === 'app:') {
+      // Packaged local bundle without VITE_TTS_API_URL configured
+      return null;
+    }
+    return '/api/tts';
   }
 
   private loadVoices() {
@@ -51,14 +114,19 @@ class RuBaAudioEngine {
       .sort((a, b) => a.name.localeCompare(b.name));
 
     if (idVoices.length > 0) {
+      // Prefer local/offline-safe Indonesian voices first on installed mobile apps, then quality names
       this.preferredVoice =
+        idVoices.find(
+          (v) => v.localService && /gadis|damayanti|google.*indonesia|natural/i.test(v.name)
+        ) ||
+        idVoices.find((v) => v.localService) ||
         idVoices.find((v) => /gadis|damayanti|google.*indonesia|natural|online/i.test(v.name)) ||
         idVoices[0];
     } else {
       const msVoices = voices
         .filter((v) => v.lang.toLowerCase().startsWith('ms'))
         .sort((a, b) => a.name.localeCompare(b.name));
-      this.preferredVoice = msVoices[0] || null;
+      this.preferredVoice = msVoices.find((v) => v.localService) || msVoices[0] || null;
     }
   }
 
@@ -84,7 +152,48 @@ class RuBaAudioEngine {
 
   public unlock() {
     try {
-      this.ensureContext();
+      const ctx = this.ensureContext();
+      if (ctx && !this.webAudioUnlocked) {
+        // Play synchronous 1-sample silent buffer inside user gesture to unlock Android WebView / iOS hardware
+        try {
+          const buf = ctx.createBuffer(1, 1, 22050);
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(ctx.destination);
+          src.start(0);
+          this.webAudioUnlocked = true;
+        } catch {
+          // Ignore silent unlock errors
+        }
+      }
+
+      if (typeof window !== 'undefined' && typeof Audio !== 'undefined' && !this.audioElUnlocked) {
+        try {
+          if (!this.sharedAudioEl) {
+            this.sharedAudioEl = new Audio();
+            this.sharedAudioEl.preload = 'auto';
+          }
+          // Unlock persistent HTMLAudioElement synchronously within gesture
+          if (!this.sharedAudioEl.src) {
+            this.sharedAudioEl.src = SILENT_WAV_DATA_URI;
+            this.sharedAudioEl.volume = 0.01;
+            const p = this.sharedAudioEl.play();
+            if (p && typeof p.then === 'function') {
+              p.then(() => {
+                if (this.sharedAudioEl && this.sharedAudioEl.src === SILENT_WAV_DATA_URI) {
+                  this.sharedAudioEl.pause();
+                }
+                this.audioElUnlocked = true;
+              }).catch(() => {});
+            } else {
+              this.audioElUnlocked = true;
+            }
+          }
+        } catch {
+          // Ignore HTMLAudioElement unlock error
+        }
+      }
+
       if (!this.voicesLoaded) {
         this.loadVoices();
       }
@@ -110,6 +219,12 @@ class RuBaAudioEngine {
     tone: SpeechTone,
     signal?: AbortSignal
   ): Promise<ArrayBuffer | null> {
+    const endpoint = this.resolveTtsEndpoint();
+    if (!endpoint) {
+      this.neuralTtsAvailable = false;
+      return null;
+    }
+
     const cacheKey = `${tone}:${text}`;
     const existingBuffer = this.audioBufferCache.get(cacheKey);
     if (existingBuffer) return existingBuffer;
@@ -122,41 +237,46 @@ class RuBaAudioEngine {
         for (let attempt = 0; attempt < 2; attempt++) {
           if (signal?.aborted) return null;
 
-          const res = await fetch('/api/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, tone }),
-            signal,
-          });
+          const timeoutCtrl = new AbortController();
+          const timeoutId = setTimeout(() => timeoutCtrl.abort(), 8500);
+          const onCallerAbort = () => timeoutCtrl.abort();
+          signal?.addEventListener('abort', onCallerAbort, { once: true });
 
-          if (res.ok) {
-            const buffer = await res.arrayBuffer();
-            if (!buffer.byteLength) return null;
-            this.audioBufferCache.set(cacheKey, buffer);
-            const blobUrl = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
-            this.audioUrlCache.set(cacheKey, blobUrl);
-            return buffer;
-          }
+          try {
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text, tone }),
+              signal: timeoutCtrl.signal,
+            });
 
-          if (res.status === 503) {
-            // API key not configured on server
-            this.neuralTtsAvailable = false;
+            if (res.ok) {
+              const buffer = await res.arrayBuffer();
+              if (!buffer.byteLength) return null;
+              this.audioBufferCache.set(cacheKey, buffer);
+              return buffer;
+            }
+
+            if (res.status === 503 || res.status === 404) {
+              this.neuralTtsAvailable = false;
+              return null;
+            }
+
+            if (res.status === 429) {
+              this.neuralCooldownUntil = Date.now() + 15000;
+              return null;
+            }
+
+            if (attempt === 0 && res.status >= 500) {
+              await new Promise((r) => setTimeout(r, 250));
+              continue;
+            }
+
             return null;
+          } finally {
+            clearTimeout(timeoutId);
+            signal?.removeEventListener('abort', onCallerAbort);
           }
-
-          if (res.status === 429) {
-            // Brief cooldown on burst rate limit so we recover cleanly to realistic neural TTS
-            this.neuralCooldownUntil = Date.now() + 15000;
-            return null;
-          }
-
-          // Retry once quickly on transient 5xx server errors
-          if (attempt === 0 && res.status >= 500) {
-            await new Promise((r) => setTimeout(r, 250));
-            continue;
-          }
-
-          return null;
         }
         return null;
       } catch {
@@ -217,11 +337,106 @@ class RuBaAudioEngine {
     }
   }
 
+  private async playWithSharedAudioEl(
+    wavBuffer: ArrayBuffer,
+    cacheKey: string,
+    cleanText: string,
+    seqId: number
+  ): Promise<boolean> {
+    if (typeof window === 'undefined' || typeof Audio === 'undefined') return false;
+
+    let dataUri = this.audioDataUriCache.get(cacheKey);
+    if (!dataUri) {
+      dataUri = `data:audio/wav;base64,${arrayBufferToBase64(wavBuffer)}`;
+      this.audioDataUriCache.set(cacheKey, dataUri);
+    }
+
+    const audio = this.sharedAudioEl || new Audio();
+    this.sharedAudioEl = audio;
+    audio.volume = 1.0;
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const done = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(ok);
+      };
+
+      audio.onended = () => {
+        if (this.speakSeqId === seqId) this.notifySpeech(false, cleanText);
+      };
+      audio.onerror = () => {
+        done(false);
+      };
+
+      try {
+        audio.pause();
+        audio.src = dataUri;
+        audio.currentTime = 0;
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.then === 'function') {
+          playPromise
+            .then(() => done(true))
+            .catch(() => done(false));
+        } else {
+          done(true);
+        }
+      } catch {
+        done(false);
+      }
+    });
+  }
+
+  private trySpeakNativePlugin(text: string, seqId: number): boolean {
+    if (typeof window === 'undefined') return false;
+    const bridge = window as unknown as NativeTtsBridge;
+    const capTts = bridge.Capacitor?.Plugins?.TextToSpeech;
+    if (capTts?.speak) {
+      try {
+        void capTts
+          .speak({ text, lang: 'id-ID', rate: 0.96, pitch: 1.06 })
+          .then(() => {
+            if (this.speakSeqId === seqId) this.notifySpeech(false, text);
+          })
+          .catch(() => {
+            if (this.speakSeqId === seqId) this.notifySpeech(false, text);
+          });
+        return true;
+      } catch {
+        // Fall through
+      }
+    }
+
+    const cordovaTts = bridge.TTS;
+    if (cordovaTts?.speak) {
+      try {
+        cordovaTts.speak(
+          { text, locale: 'id-ID', rate: 0.96 },
+          () => {
+            if (this.speakSeqId === seqId) this.notifySpeech(false, text);
+          },
+          () => {
+            if (this.speakSeqId === seqId) this.notifySpeech(false, text);
+          }
+        );
+        return true;
+      } catch {
+        // Fall through
+      }
+    }
+    return false;
+  }
+
   private speakFallbackBrowser(
     text: string,
     seqId: number,
     _opts?: { tone?: SpeechTone; rate?: number; pitch?: number }
   ) {
+    if (this.trySpeakNativePlugin(text, seqId)) {
+      return;
+    }
+
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setTimeout(() => {
         if (this.speakSeqId === seqId) this.notifySpeech(false, text);
@@ -230,28 +445,58 @@ class RuBaAudioEngine {
     }
 
     try {
-      window.speechSynthesis.cancel();
+      const synth = window.speechSynthesis;
+      const needsCancelDelay = synth.speaking || synth.pending;
+      if (needsCancelDelay) {
+        synth.cancel();
+      }
+      if (synth.paused) {
+        synth.resume();
+      }
       if (!this.voicesLoaded) this.loadVoices();
 
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'id-ID';
-      if (this.preferredVoice) {
-        utter.voice = this.preferredVoice;
+      const startUtterance = (allowPreferredVoice: boolean) => {
+        if (this.speakSeqId !== seqId) return;
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'id-ID';
+        if (allowPreferredVoice && this.preferredVoice) {
+          utter.voice = this.preferredVoice;
+        }
+
+        // Always keep pitch & rate identical across calls so voice never sounds inconsistent
+        utter.pitch = 1.06;
+        utter.rate = 0.96;
+        utter.volume = 1.0;
+
+        this.activeUtterance = utter;
+
+        utter.onend = () => {
+          if (this.activeUtterance === utter) this.activeUtterance = null;
+          if (this.speakSeqId === seqId) this.notifySpeech(false, text);
+        };
+        utter.onerror = () => {
+          if (this.activeUtterance === utter) this.activeUtterance = null;
+          // If selected cloud/voice failed on Android WebView, retry once with bare id-ID system default
+          if (allowPreferredVoice && this.preferredVoice && this.speakSeqId === seqId) {
+            startUtterance(false);
+            return;
+          }
+          if (this.speakSeqId === seqId) this.notifySpeech(false, text);
+        };
+
+        synth.speak(utter);
+      };
+
+      // Android Chrome/WebView silently drops speak() if called on the exact same tick as cancel()
+      if (needsCancelDelay) {
+        this.fallbackDelayTimer = window.setTimeout(() => {
+          this.fallbackDelayTimer = null;
+          startUtterance(true);
+        }, 45);
+      } else {
+        startUtterance(true);
       }
 
-      // Always keep pitch & rate identical across calls so voice never sounds inconsistent
-      utter.pitch = 1.06;
-      utter.rate = 0.96;
-      utter.volume = 1.0;
-
-      utter.onend = () => {
-        if (this.speakSeqId === seqId) this.notifySpeech(false, text);
-      };
-      utter.onerror = () => {
-        if (this.speakSeqId === seqId) this.notifySpeech(false, text);
-      };
-
-      window.speechSynthesis.speak(utter);
       // Safety timeout in case Android WebView speechSynthesis never fires onend
       setTimeout(() => {
         if (this.speakSeqId === seqId) this.notifySpeech(false, text);
@@ -270,6 +515,7 @@ class RuBaAudioEngine {
     const cleanText = text.trim();
     if (!cleanText) return;
 
+    this.unlock();
     this.stopSpeech();
     const seqId = ++this.speakSeqId;
     const tone: SpeechTone = opts?.tone ?? 'cheerful';
@@ -294,46 +540,27 @@ class RuBaAudioEngine {
         return;
       }
 
-      // Primary path: play decoded audio via unlocked Web Audio API so mobile async autoplay never drops to system voice
+      // Primary path: play decoded audio via unlocked Web Audio API (reliable across async fetches)
       const playedViaWebAudio = await this.playWithAudioContext(wavBuffer, cleanText, seqId);
       if (playedViaWebAudio || seqId !== this.speakSeqId) {
         return;
       }
 
-      // Secondary neural path: HTMLAudioElement with cached blob URL
+      // Secondary neural path: persistent unlocked HTMLAudioElement with data:audio/wav URI (WebView-safe)
       const cacheKey = `${tone}:${cleanText}`;
-      const wavUrl =
-        this.audioUrlCache.get(cacheKey) ||
-        URL.createObjectURL(new Blob([wavBuffer], { type: 'audio/wav' }));
-      this.audioUrlCache.set(cacheKey, wavUrl);
-
-      const audio = new Audio(wavUrl);
-      audio.volume = 1.0;
-      this.activeAudioEl = audio;
-
-      audio.onended = () => {
-        if (this.activeAudioEl === audio) this.activeAudioEl = null;
-        if (this.speakSeqId === seqId) this.notifySpeech(false, cleanText);
-      };
-      audio.onerror = () => {
-        if (this.activeAudioEl === audio) this.activeAudioEl = null;
-        if (this.speakSeqId === seqId) {
-          this.speakFallbackBrowser(cleanText, seqId, opts);
-        }
-      };
-
-      try {
-        await audio.play();
-      } catch {
-        if (this.speakSeqId === seqId) {
-          this.speakFallbackBrowser(cleanText, seqId, opts);
-        }
+      const playedViaEl = await this.playWithSharedAudioEl(wavBuffer, cacheKey, cleanText, seqId);
+      if (!playedViaEl && seqId === this.speakSeqId) {
+        this.speakFallbackBrowser(cleanText, seqId, opts);
       }
     })();
   }
 
   public stopSpeech() {
     this.speakSeqId++;
+    if (this.fallbackDelayTimer !== null) {
+      clearTimeout(this.fallbackDelayTimer);
+      this.fallbackDelayTimer = null;
+    }
     if (this.activeAbortController) {
       this.activeAbortController.abort();
       this.activeAbortController = null;
@@ -348,16 +575,30 @@ class RuBaAudioEngine {
       }
       this.activeSourceNode = null;
     }
-    if (this.activeAudioEl) {
-      this.activeAudioEl.pause();
-      this.activeAudioEl.currentTime = 0;
-      this.activeAudioEl = null;
-    }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    if (this.sharedAudioEl) {
       try {
-        window.speechSynthesis?.cancel?.();
+        this.sharedAudioEl.onended = null;
+        this.sharedAudioEl.onerror = null;
+        this.sharedAudioEl.pause();
       } catch {
-        // Ignore WebView speechSynthesis cancel error
+        // Ignore pause error
+      }
+    }
+    this.activeUtterance = null;
+    if (typeof window !== 'undefined') {
+      const bridge = window as unknown as NativeTtsBridge;
+      try {
+        void bridge.Capacitor?.Plugins?.TextToSpeech?.stop?.();
+        bridge.TTS?.stop?.();
+      } catch {
+        // Ignore native stop error
+      }
+      if ('speechSynthesis' in window) {
+        try {
+          window.speechSynthesis?.cancel?.();
+        } catch {
+          // Ignore WebView speechSynthesis cancel error
+        }
       }
     }
     this.notifySpeech(false, '');
