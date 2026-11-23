@@ -16,12 +16,15 @@ class RuBaAudioEngine {
   private voicesLoaded = false;
 
   // Natural Neural TTS playback & caching state
-  private audioCache: Map<string, string> = new Map();
-  private pendingFetches: Map<string, Promise<string | null>> = new Map();
+  private audioBufferCache: Map<string, ArrayBuffer> = new Map();
+  private audioUrlCache: Map<string, string> = new Map();
+  private pendingFetches: Map<string, Promise<ArrayBuffer | null>> = new Map();
+  private activeSourceNode: AudioBufferSourceNode | null = null;
   private activeAudioEl: HTMLAudioElement | null = null;
   private activeAbortController: AbortController | null = null;
   private speakSeqId: number = 0;
   private neuralTtsAvailable: boolean = true;
+  private neuralCooldownUntil: number = 0;
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -38,13 +41,23 @@ class RuBaAudioEngine {
     if (!voices.length) return;
     this.voicesLoaded = true;
 
-    const idVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('id'));
+    // Keep voice selection locked once resolved so fallback never flips speakers mid-session
+    if (this.preferredVoice && voices.some((v) => v.voiceURI === this.preferredVoice?.voiceURI)) {
+      return;
+    }
+
+    const idVoices = voices
+      .filter((v) => v.lang.toLowerCase().startsWith('id'))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
     if (idVoices.length > 0) {
       this.preferredVoice =
-        idVoices.find((v) => /google|gadis|damayanti|natural|online/i.test(v.name)) ||
+        idVoices.find((v) => /gadis|damayanti|google.*indonesia|natural|online/i.test(v.name)) ||
         idVoices[0];
     } else {
-      const msVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('ms'));
+      const msVoices = voices
+        .filter((v) => v.lang.toLowerCase().startsWith('ms'))
+        .sort((a, b) => a.name.localeCompare(b.name));
       this.preferredVoice = msVoices[0] || null;
     }
   }
@@ -92,40 +105,60 @@ class RuBaAudioEngine {
     this.speechListeners.forEach((fn) => fn(speaking, text));
   }
 
-  private async fetchNeuralWavUrl(
+  private async fetchNeuralWavBuffer(
     text: string,
     tone: SpeechTone,
     signal?: AbortSignal
-  ): Promise<string | null> {
+  ): Promise<ArrayBuffer | null> {
     const cacheKey = `${tone}:${text}`;
-    const existingUrl = this.audioCache.get(cacheKey);
-    if (existingUrl) return existingUrl;
+    const existingBuffer = this.audioBufferCache.get(cacheKey);
+    if (existingBuffer) return existingBuffer;
 
     const inFlight = this.pendingFetches.get(cacheKey);
     if (inFlight && !signal) return inFlight;
 
     const fetchPromise = (async () => {
       try {
-        const res = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, tone }),
-          signal,
-        });
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (signal?.aborted) return null;
 
-        if (!res.ok) {
-          if (res.status === 503) {
-            // API key not configured on server; mark temporarily unavailable
-            this.neuralTtsAvailable = false;
+          const res = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, tone }),
+            signal,
+          });
+
+          if (res.ok) {
+            const buffer = await res.arrayBuffer();
+            if (!buffer.byteLength) return null;
+            this.audioBufferCache.set(cacheKey, buffer);
+            const blobUrl = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+            this.audioUrlCache.set(cacheKey, blobUrl);
+            return buffer;
           }
+
+          if (res.status === 503) {
+            // API key not configured on server
+            this.neuralTtsAvailable = false;
+            return null;
+          }
+
+          if (res.status === 429) {
+            // Brief cooldown on burst rate limit so we recover cleanly to realistic neural TTS
+            this.neuralCooldownUntil = Date.now() + 15000;
+            return null;
+          }
+
+          // Retry once quickly on transient 5xx server errors
+          if (attempt === 0 && res.status >= 500) {
+            await new Promise((r) => setTimeout(r, 250));
+            continue;
+          }
+
           return null;
         }
-
-        const blob = await res.blob();
-        if (!blob.size) return null;
-        const url = URL.createObjectURL(blob);
-        this.audioCache.set(cacheKey, url);
-        return url;
+        return null;
       } catch {
         return null;
       } finally {
@@ -140,16 +173,54 @@ class RuBaAudioEngine {
   }
 
   public prefetch(text: string, tone: SpeechTone = 'cheerful') {
-    if (!this.neuralTtsAvailable || !text.trim()) return;
-    const cacheKey = `${tone}:${text.trim()}`;
-    if (this.audioCache.has(cacheKey) || this.pendingFetches.has(cacheKey)) return;
-    void this.fetchNeuralWavUrl(text.trim(), tone);
+    const clean = text.trim();
+    if (!this.neuralTtsAvailable || !clean) return;
+    const cacheKey = `${tone}:${clean}`;
+    if (this.audioBufferCache.has(cacheKey) || this.pendingFetches.has(cacheKey)) return;
+    void this.fetchNeuralWavBuffer(clean, tone);
+  }
+
+  private async playWithAudioContext(
+    wavBuffer: ArrayBuffer,
+    cleanText: string,
+    seqId: number
+  ): Promise<boolean> {
+    const ctx = this.ensureContext();
+    if (!ctx) return false;
+
+    try {
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      // Clone buffer because decodeAudioData detaches the passed ArrayBuffer
+      const decoded = await ctx.decodeAudioData(wavBuffer.slice(0));
+      if (seqId !== this.speakSeqId) return true;
+
+      const source = ctx.createBufferSource();
+      source.buffer = decoded;
+      source.connect(ctx.destination);
+      this.activeSourceNode = source;
+
+      source.onended = () => {
+        if (this.activeSourceNode === source) {
+          this.activeSourceNode = null;
+        }
+        if (this.speakSeqId === seqId) {
+          this.notifySpeech(false, cleanText);
+        }
+      };
+
+      source.start(0);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private speakFallbackBrowser(
     text: string,
     seqId: number,
-    opts?: { tone?: SpeechTone; rate?: number; pitch?: number }
+    _opts?: { tone?: SpeechTone; rate?: number; pitch?: number }
   ) {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setTimeout(() => {
@@ -168,9 +239,9 @@ class RuBaAudioEngine {
         utter.voice = this.preferredVoice;
       }
 
-      const tone = opts?.tone ?? 'cheerful';
-      utter.pitch = opts?.pitch ?? (tone === 'excited' ? 1.15 : tone === 'gentle' ? 1.05 : 1.1);
-      utter.rate = opts?.rate ?? (tone === 'gentle' ? 0.92 : 0.96);
+      // Always keep pitch & rate identical across calls so voice never sounds inconsistent
+      utter.pitch = 1.06;
+      utter.rate = 0.96;
       utter.volume = 1.0;
 
       utter.onend = () => {
@@ -204,7 +275,7 @@ class RuBaAudioEngine {
     const tone: SpeechTone = opts?.tone ?? 'cheerful';
     this.notifySpeech(true, cleanText);
 
-    if (!this.neuralTtsAvailable) {
+    if (!this.neuralTtsAvailable || Date.now() < this.neuralCooldownUntil) {
       this.speakFallbackBrowser(cleanText, seqId, opts);
       return;
     }
@@ -213,15 +284,28 @@ class RuBaAudioEngine {
     this.activeAbortController = controller;
 
     void (async () => {
-      const wavUrl = await this.fetchNeuralWavUrl(cleanText, tone, controller.signal);
+      const wavBuffer = await this.fetchNeuralWavBuffer(cleanText, tone, controller.signal);
       if (seqId !== this.speakSeqId || controller.signal.aborted) {
         return;
       }
 
-      if (!wavUrl) {
+      if (!wavBuffer) {
         this.speakFallbackBrowser(cleanText, seqId, opts);
         return;
       }
+
+      // Primary path: play decoded audio via unlocked Web Audio API so mobile async autoplay never drops to system voice
+      const playedViaWebAudio = await this.playWithAudioContext(wavBuffer, cleanText, seqId);
+      if (playedViaWebAudio || seqId !== this.speakSeqId) {
+        return;
+      }
+
+      // Secondary neural path: HTMLAudioElement with cached blob URL
+      const cacheKey = `${tone}:${cleanText}`;
+      const wavUrl =
+        this.audioUrlCache.get(cacheKey) ||
+        URL.createObjectURL(new Blob([wavBuffer], { type: 'audio/wav' }));
+      this.audioUrlCache.set(cacheKey, wavUrl);
 
       const audio = new Audio(wavUrl);
       audio.volume = 1.0;
@@ -253,6 +337,16 @@ class RuBaAudioEngine {
     if (this.activeAbortController) {
       this.activeAbortController.abort();
       this.activeAbortController = null;
+    }
+    if (this.activeSourceNode) {
+      try {
+        this.activeSourceNode.onended = null;
+        this.activeSourceNode.stop();
+        this.activeSourceNode.disconnect();
+      } catch {
+        // Ignore already-stopped AudioBufferSourceNode
+      }
+      this.activeSourceNode = null;
     }
     if (this.activeAudioEl) {
       this.activeAudioEl.pause();

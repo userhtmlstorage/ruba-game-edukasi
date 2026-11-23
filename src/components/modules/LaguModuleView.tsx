@@ -56,6 +56,7 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
     if (tab === 'player') {
       const msg = `Ayo dengarkan dan nyanyikan lagu ${selectedSong.title}!`;
       onPromptChange(msg, msg);
+      audioEngine.speak(msg, { tone: 'cheerful' });
     } else {
       const msg = targetSong.quizPrompt;
       onPromptChange(msg, 'Dengarkan melodinya, lalu tebak judul lagunya!');
@@ -69,6 +70,7 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
 
   const togglePlaySong = (song: KidsSong, snippetOnly = false) => {
     audioEngine.unlock();
+    audioEngine.stopSpeech();
     if (isPlaying) {
       audioEngine.stopSong();
       setIsPlaying(false);

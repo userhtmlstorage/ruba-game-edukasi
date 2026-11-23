@@ -36,10 +36,6 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
     setTappedCounts([]);
     onPromptChange(current.promptAudio, current.promptText);
     audioEngine.speak(current.promptAudio, { tone: 'cheerful' });
-    const nextQ = questions[index + 1];
-    if (nextQ) {
-      audioEngine.prefetch(nextQ.promptAudio, 'cheerful');
-    }
   }, [index, current, questions, onPromptChange]);
 
   const handleSelect = (opt: QuizOption) => {
