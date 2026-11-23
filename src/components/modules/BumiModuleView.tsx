@@ -54,6 +54,8 @@ export const BumiModuleView: React.FC<BumiModuleViewProps> = ({
 
   const handleChooseBin = (bin: 'organik' | 'non_organik') => {
     if (solved || current.type !== 'trash') return;
+    audioEngine.unlock();
+    audioEngine.playPop();
     if (bin === current.correctBin) {
       advance(current.successAudio);
     } else {
@@ -67,6 +69,8 @@ export const BumiModuleView: React.FC<BumiModuleViewProps> = ({
 
   const handleEcoAction = (isCorrectTarget: boolean) => {
     if (solved || current.type !== 'action') return;
+    audioEngine.unlock();
+    audioEngine.playPop();
     if (isCorrectTarget) {
       advance(current.successAudio);
     } else {

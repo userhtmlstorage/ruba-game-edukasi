@@ -1,6 +1,34 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useViewportSize } from '../hooks/useViewportSize';
 import { BobiMood, CostumeId } from '../types';
+
+interface StarParticleSpec {
+  id: number;
+  kind: 'star' | 'sparkle';
+  size: number;
+  peakX: number;
+  endX: number;
+  peakY: number;
+  endY: number;
+  rotate: number;
+  delay: number;
+  duration: number;
+  fill: string;
+  stroke: string;
+}
+
+const HEAD_STAR_PARTICLES: StarParticleSpec[] = [
+  { id: 1, kind: 'star', size: 22, peakX: 0, endX: 0, peakY: -48, endY: -38, rotate: 180, delay: 0, duration: 0.92, fill: '#FACC15', stroke: '#D97706' },
+  { id: 2, kind: 'star', size: 17, peakX: -28, endX: -40, peakY: -42, endY: -28, rotate: -155, delay: 0.04, duration: 0.9, fill: '#FDE047', stroke: '#CA8A04' },
+  { id: 3, kind: 'star', size: 17, peakX: 28, endX: 40, peakY: -42, endY: -28, rotate: 160, delay: 0.04, duration: 0.9, fill: '#FBBF24', stroke: '#D97706' },
+  { id: 4, kind: 'star', size: 14, peakX: -44, endX: -54, peakY: -20, endY: -6, rotate: -210, delay: 0.08, duration: 0.86, fill: '#FB923C', stroke: '#C2410C' },
+  { id: 5, kind: 'star', size: 14, peakX: 44, endX: 54, peakY: -20, endY: -6, rotate: 210, delay: 0.08, duration: 0.86, fill: '#FB923C', stroke: '#C2410C' },
+  { id: 6, kind: 'sparkle', size: 13, peakX: -16, endX: -22, peakY: -54, endY: -48, rotate: 90, delay: 0.06, duration: 0.88, fill: '#FEF08A', stroke: '#F59E0B' },
+  { id: 7, kind: 'sparkle', size: 13, peakX: 16, endX: 22, peakY: -54, endY: -48, rotate: -90, delay: 0.06, duration: 0.88, fill: '#FEF08A', stroke: '#F59E0B' },
+  { id: 8, kind: 'star', size: 11, peakX: -22, endX: -30, peakY: -28, endY: -16, rotate: -120, delay: 0.11, duration: 0.82, fill: '#FDE047', stroke: '#D97706' },
+  { id: 9, kind: 'star', size: 11, peakX: 22, endX: 30, peakY: -28, endY: -16, rotate: 120, delay: 0.11, duration: 0.82, fill: '#FDE047', stroke: '#D97706' },
+];
 
 interface BobiCharacterProps {
   mood?: BobiMood;
@@ -8,6 +36,7 @@ interface BobiCharacterProps {
   speech?: string;
   size?: 'sm' | 'md' | 'lg';
   jumpTick?: number;
+  starBurstTick?: number;
 }
 
 export const BobiCharacter: React.FC<BobiCharacterProps> = ({
@@ -16,7 +45,31 @@ export const BobiCharacter: React.FC<BobiCharacterProps> = ({
   speech,
   size = 'md',
   jumpTick = 0,
+  starBurstTick = 0,
 }) => {
+  const prevStarTickRef = useRef<number>(starBurstTick);
+  const cleanupTimersRef = useRef<number[]>([]);
+  const [starBursts, setStarBursts] = useState<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      cleanupTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      cleanupTimersRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    if (starBurstTick > prevStarTickRef.current) {
+      const burstId = starBurstTick;
+      setStarBursts((prev) => [...prev.slice(-2), burstId]);
+      const timerId = window.setTimeout(() => {
+        setStarBursts((prev) => prev.filter((id) => id !== burstId));
+        cleanupTimersRef.current = cleanupTimersRef.current.filter((t) => t !== timerId);
+      }, 1150);
+      cleanupTimersRef.current.push(timerId);
+    }
+    prevStarTickRef.current = starBurstTick;
+  }, [starBurstTick]);
   const viewport = useViewportSize();
 
   const sizeClass = viewport.isPhone
@@ -56,13 +109,78 @@ export const BobiCharacter: React.FC<BobiCharacterProps> = ({
 
       <div
         key={mood === 'jumping' ? jumpTick : undefined}
-        className={`${sizeClass} ${animClass} transition-transform duration-150`}
+        className={`relative ${sizeClass} ${animClass} transition-transform duration-150`}
         style={
           mood === 'jumping' && jumpTick > 0
             ? { transform: 'translateY(-22px) scale(1.06)' }
             : undefined
         }
       >
+        {/* Partikel bintang di atas kepala Bobi saat jawaban benar */}
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute -top-2 sm:-top-3 left-1/2 -translate-x-1/2 z-20 ${
+            viewport.isPhone ? 'scale-75' : ''
+          }`}
+        >
+          <AnimatePresence>
+            {starBursts.map((burstId) => (
+              <div key={burstId} className="relative h-0 w-0">
+                <motion.div
+                  initial={{ opacity: 0.75, scale: 0.35 }}
+                  animate={{ opacity: 0, scale: 1.5 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.55, ease: 'easeOut' }}
+                  className="absolute -left-6 -top-8 h-12 w-12 rounded-full bg-amber-300/45 blur-sm"
+                />
+                {HEAD_STAR_PARTICLES.map((p) => (
+                  <motion.svg
+                    key={`${burstId}-${p.id}`}
+                    viewBox="0 0 24 24"
+                    width={p.size}
+                    height={p.size}
+                    className="absolute drop-shadow-sm"
+                    style={{ left: -p.size / 2, top: -p.size / 2 }}
+                    initial={{ opacity: 0, x: 0, y: 10, scale: 0.2, rotate: -25 }}
+                    animate={{
+                      opacity: [0, 1, 1, 0],
+                      x: [0, p.peakX, p.endX],
+                      y: [10, p.peakY, p.endY],
+                      scale: [0.2, 1.25, 0.95, 0.25],
+                      rotate: p.rotate,
+                    }}
+                    exit={{ opacity: 0 }}
+                    transition={{
+                      duration: p.duration,
+                      delay: p.delay,
+                      times: [0, 0.48, 0.8, 1],
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                  >
+                    {p.kind === 'star' ? (
+                      <polygon
+                        points="12,2 14.9,8.5 22,9.3 16.6,14 18.2,21 12,17.3 5.8,21 7.4,14 2,9.3 9.1,8.5"
+                        fill={p.fill}
+                        stroke={p.stroke}
+                        strokeWidth="1.6"
+                        strokeLinejoin="round"
+                      />
+                    ) : (
+                      <path
+                        d="M12 1 L14.6 9.4 L23 12 L14.6 14.6 L12 23 L9.4 14.6 L1 12 L9.4 9.4 Z"
+                        fill={p.fill}
+                        stroke={p.stroke}
+                        strokeWidth="1.4"
+                        strokeLinejoin="round"
+                      />
+                    )}
+                  </motion.svg>
+                ))}
+              </div>
+            ))}
+          </AnimatePresence>
+        </div>
+
         <svg viewBox="0 0 200 210" className="w-full h-full drop-shadow-md">
           {/* Superhero Cape behind body */}
           {costume === 'superhero' && (

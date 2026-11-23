@@ -55,6 +55,8 @@ export const SainsModuleView: React.FC<SainsModuleViewProps> = ({
 
   const handleSinkFloatChoice = (choice: 'terapung' | 'tenggelam') => {
     if (solved || current.type !== 'sink_float') return;
+    audioEngine.unlock();
+    audioEngine.playPop();
     if (choice === current.answer) {
       finishSuccess(current.successAudio, true);
     } else {
@@ -68,6 +70,8 @@ export const SainsModuleView: React.FC<SainsModuleViewProps> = ({
 
   const handleColorMixChoice = (name: string, isCorrect: boolean) => {
     if (solved || current.type !== 'color_mix') return;
+    audioEngine.unlock();
+    audioEngine.playPop();
     if (isCorrect) {
       finishSuccess(current.successAudio, false);
     } else {

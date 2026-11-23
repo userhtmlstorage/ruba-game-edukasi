@@ -40,6 +40,8 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
 
   const handleSelect = (opt: QuizOption) => {
     if (solved) return;
+    audioEngine.unlock();
+    audioEngine.playPop();
 
     if (opt.isCorrect) {
       setSolved(true);
@@ -81,10 +83,14 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
 
   const handleTapCountItem = (idx: number) => {
     if (!enableTapToCount) return;
-    audioEngine.playTap();
+    audioEngine.unlock();
     setTappedCounts((prev) => {
-      if (prev.includes(idx)) return prev;
+      if (prev.includes(idx)) {
+        audioEngine.playPop(prev.length * 35);
+        return prev;
+      }
       const next = [...prev, idx];
+      audioEngine.playPop(next.length * 45);
       const indoNumbers = [
         '', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima',
         'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh',

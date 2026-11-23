@@ -657,8 +657,108 @@ class RuBaAudioEngine {
     }
   }
 
+  public playPop(pitchOffset: number = 0) {
+    try {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const baseFreq = Math.max(200, 340 + pitchOffset);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 2.15, now + 0.055);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.16, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.09);
+
+      const over = ctx.createOscillator();
+      const overGain = ctx.createGain();
+      over.type = 'triangle';
+      over.frequency.setValueAtTime(baseFreq * 2.2, now + 0.01);
+      over.frequency.exponentialRampToValueAtTime(baseFreq * 3.1, now + 0.05);
+      overGain.gain.setValueAtTime(0.0001, now + 0.01);
+      overGain.gain.linearRampToValueAtTime(0.045, now + 0.02);
+      overGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
+      over.connect(overGain);
+      overGain.connect(ctx.destination);
+      over.start(now + 0.01);
+      over.stop(now + 0.08);
+    } catch {
+      // Never throw on restricted WebView audio playback
+    }
+  }
+
+  public playWoosh(direction: 'in' | 'out' = 'in') {
+    try {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const dur = 0.22;
+      const frameCount = Math.max(1, Math.floor(ctx.sampleRate * dur));
+      const buffer = ctx.createBuffer(1, frameCount, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < frameCount; i++) {
+        data[i] = (Math.random() * 2 - 1) * 0.65;
+      }
+
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.setValueAtTime(2.0, now);
+      if (direction === 'in') {
+        filter.frequency.setValueAtTime(340, now);
+        filter.frequency.exponentialRampToValueAtTime(1850, now + dur * 0.72);
+        filter.frequency.exponentialRampToValueAtTime(720, now + dur);
+      } else {
+        filter.frequency.setValueAtTime(1500, now);
+        filter.frequency.exponentialRampToValueAtTime(380, now + dur);
+      }
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.09, now + dur * 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(now);
+      noise.stop(now + dur + 0.02);
+
+      const glide = ctx.createOscillator();
+      const glideGain = ctx.createGain();
+      glide.type = 'sine';
+      if (direction === 'in') {
+        glide.frequency.setValueAtTime(360, now);
+        glide.frequency.exponentialRampToValueAtTime(720, now + dur * 0.85);
+      } else {
+        glide.frequency.setValueAtTime(640, now);
+        glide.frequency.exponentialRampToValueAtTime(330, now + dur * 0.85);
+      }
+      glideGain.gain.setValueAtTime(0.0001, now);
+      glideGain.gain.linearRampToValueAtTime(0.045, now + dur * 0.25);
+      glideGain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      glide.connect(glideGain);
+      glideGain.connect(ctx.destination);
+      glide.start(now);
+      glide.stop(now + dur + 0.02);
+    } catch {
+      // Never throw on restricted WebView audio playback
+    }
+  }
+
   public playTap() {
-    this.playTone(587.33, 0.09, 'triangle', 0.1);
+    this.playPop(60);
   }
 
   public playSuccess() {

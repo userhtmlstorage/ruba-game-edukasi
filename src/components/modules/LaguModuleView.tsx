@@ -95,15 +95,18 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
   };
 
   const handleSelectSong = (song: KidsSong) => {
+    audioEngine.unlock();
     audioEngine.stopSong();
     setIsPlaying(false);
     setElapsedSec(0);
     setSelectedSong(song);
-    audioEngine.playTap();
+    audioEngine.playPop(50);
   };
 
   const handleGuessSong = (guess: KidsSong) => {
     if (quizSolved) return;
+    audioEngine.unlock();
+    audioEngine.playPop();
     if (guess.id === targetSong.id) {
       audioEngine.stopSong();
       setIsPlaying(false);
@@ -147,6 +150,9 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
         <button
           type="button"
           onClick={() => {
+            audioEngine.unlock();
+            audioEngine.playPop();
+            audioEngine.playWoosh('out');
             audioEngine.stopSong();
             setIsPlaying(false);
             setTab('player');
@@ -164,6 +170,9 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
         <button
           type="button"
           onClick={() => {
+            audioEngine.unlock();
+            audioEngine.playPop();
+            audioEngine.playWoosh('in');
             audioEngine.stopSong();
             setIsPlaying(false);
             setQuizIndex(0);

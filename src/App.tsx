@@ -7,6 +7,7 @@ import {
   Play,
   RotateCcw,
   Shirt,
+  Sparkles,
   Star,
   Volume2,
   VolumeX,
@@ -52,6 +53,7 @@ import {
 } from './components/ScreenTransitions';
 import { useViewportSize } from './hooks/useViewportSize';
 import { AdPlacementContext, admobService } from './services/admobService';
+import { getDailyChallenge, getLocalDateKey } from './utils/dailyLevel';
 
 const STORAGE_KEY = 'ruba_progress_v1';
 
@@ -60,6 +62,7 @@ interface SavedProgress {
   selectedCostume: CostumeId;
   unlockedStickers: string[];
   completedModules: ModuleId[];
+  dailyCompletedDates: string[];
 }
 
 const DEFAULT_PROGRESS: SavedProgress = {
@@ -67,6 +70,7 @@ const DEFAULT_PROGRESS: SavedProgress = {
   selectedCostume: 'default',
   unlockedStickers: [],
   completedModules: [],
+  dailyCompletedDates: [],
 };
 
 function loadProgress(): SavedProgress {
@@ -79,6 +83,9 @@ function loadProgress(): SavedProgress {
       selectedCostume: parsed.selectedCostume || 'default',
       unlockedStickers: Array.isArray(parsed.unlockedStickers) ? parsed.unlockedStickers : [],
       completedModules: Array.isArray(parsed.completedModules) ? parsed.completedModules : [],
+      dailyCompletedDates: Array.isArray(parsed.dailyCompletedDates)
+        ? parsed.dailyCompletedDates.filter((d): d is string => typeof d === 'string').slice(-30)
+        : [],
     };
   } catch {
     return DEFAULT_PROGRESS;
@@ -114,6 +121,7 @@ export default function App() {
   );
   const [confettiKey, setConfettiKey] = useState<number>(0);
   const [jumpTick, setJumpTick] = useState<number>(0);
+  const [starBurstTick, setStarBurstTick] = useState<number>(0);
   const [moduleSessionKey, setModuleSessionKey] = useState<number>(1);
 
   const [showWardrobe, setShowWardrobe] = useState<boolean>(false);
@@ -123,11 +131,16 @@ export default function App() {
   const [logoError, setLogoError] = useState<boolean>(false);
   const [showTestInterstitial, setShowTestInterstitial] = useState<boolean>(false);
   const [navMode, setNavMode] = useState<NavTransitionMode>('welcome');
+  const [todayKey, setTodayKey] = useState<string>(() => getLocalDateKey());
+  const [dailyBonusAwarded, setDailyBonusAwarded] = useState<number>(0);
   const [doorOverlay, setDoorOverlay] = useState<{
     key: number;
     moduleMeta: ModuleMeta | null;
     iconKey: IllustrationKey | null;
   }>({ key: 0, moduleMeta: null, iconKey: null });
+
+  const dailyChallenge = getDailyChallenge(todayKey);
+  const isDailyCompletedToday = progress.dailyCompletedDates.includes(dailyChallenge.dateKey);
 
   useEffect(() => {
     try {
@@ -147,6 +160,20 @@ export default function App() {
       audioEngine.stopSpeech();
     };
   }, []);
+
+  useEffect(() => {
+    const syncToday = () => {
+      const currentKey = getLocalDateKey();
+      setTodayKey((prev) => (prev === currentKey ? prev : currentKey));
+    };
+    syncToday();
+    window.addEventListener('focus', syncToday);
+    document.addEventListener('visibilitychange', syncToday);
+    return () => {
+      window.removeEventListener('focus', syncToday);
+      document.removeEventListener('visibilitychange', syncToday);
+    };
+  }, [screen]);
 
   useEffect(() => {
     const context: AdPlacementContext =
@@ -171,13 +198,20 @@ export default function App() {
     setDoorOverlay((prev) => ({ ...prev, moduleMeta: null, iconKey: null }));
     setScreen('HUB');
     setBobiMood('happy');
-    const welcome = 'Selamat datang di Pintu Masuk RuBa! Pilih modul belajar mana yang kamu suka?';
-    setBobiSpeech('Pilih pintu belajar yang kamu suka!');
+    const welcome = !isDailyCompletedToday
+      ? `Selamat datang di Pintu Masuk RuBa! Rekomendasi hari ini adalah modul ${dailyChallenge.moduleMeta.title} untuk bonus ${dailyChallenge.bonusStars} bintang!`
+      : 'Selamat datang di Pintu Masuk RuBa! Pilih modul belajar mana yang kamu suka?';
+    setBobiSpeech(
+      !isDailyCompletedToday
+        ? `Hari ini: ${dailyChallenge.moduleMeta.title} (+${dailyChallenge.bonusStars} ★)!`
+        : 'Pilih pintu belajar yang kamu suka!'
+    );
     setCurrentAudioPrompt(welcome);
     window.setTimeout(() => setBobiMood('idle'), 2000);
 
     try {
       audioEngine.unlock();
+      audioEngine.playWoosh('in');
       audioEngine.playSuccess();
       if (!bgmMuted) {
         audioEngine.startBgm();
@@ -186,11 +220,12 @@ export default function App() {
     } catch {
       // Transisi menu utama tidak boleh terhambat jika audio diblokir browser mobile
     }
-  }, [bgmMuted]);
+  }, [bgmMuted, dailyChallenge.bonusStars, dailyChallenge.moduleMeta.title, isDailyCompletedToday]);
 
   const handleOpenModule = (modId: ModuleId) => {
     audioEngine.unlock();
-    audioEngine.playTap();
+    audioEngine.playPop();
+    audioEngine.playWoosh('in');
     const targetMeta = MODULES.find((m) => m.id === modId) || null;
     setNavMode('enter-module');
     setDoorOverlay((prev) => ({
@@ -202,6 +237,7 @@ export default function App() {
     setModuleSessionKey((k) => k + 1);
     setRoundSummaryModule(null);
     setNewlyUnlockedCostumeName(null);
+    setDailyBonusAwarded(0);
     setBobiMood('idle');
     setScreen('MODULE');
   };
@@ -209,7 +245,8 @@ export default function App() {
   const handleBackToHub = useCallback(() => {
     audioEngine.stopSong();
     audioEngine.stopSpeech();
-    audioEngine.playTap();
+    audioEngine.playPop(40);
+    audioEngine.playWoosh('out');
     setNavMode('hop-hub');
     setDoorOverlay((prev) => ({ ...prev, moduleMeta: null, iconKey: null }));
     setActiveModule(null);
@@ -246,6 +283,7 @@ export default function App() {
 
   const handleCorrectAnswer = useCallback((feedbackText: string) => {
     setConfettiKey((k) => k + 1);
+    setStarBurstTick((t) => t + 1);
     setBobiMood('dancing');
     setBobiSpeech(feedbackText);
 
@@ -283,24 +321,60 @@ export default function App() {
     setConfettiKey((k) => k + 1);
     setBobiMood('dancing');
 
+    const canAwardDaily =
+      activeModule === dailyChallenge.moduleMeta.id &&
+      !progress.dailyCompletedDates.includes(dailyChallenge.dateKey);
+    const bonusStarsToAdd = canAwardDaily ? dailyChallenge.bonusStars : 0;
+    setDailyBonusAwarded(bonusStarsToAdd);
+
+    if (bonusStarsToAdd > 0) {
+      const unlockedByBonus = COSTUMES.find(
+        (c) => c.starsRequired > progress.stars && c.starsRequired <= progress.stars + bonusStarsToAdd
+      );
+      if (unlockedByBonus) {
+        setNewlyUnlockedCostumeName(unlockedByBonus.name);
+      }
+    }
+
     if (modMeta) {
-      setProgress((prev) => ({
-        ...prev,
-        unlockedStickers: prev.unlockedStickers.includes(modMeta.stickerId)
-          ? prev.unlockedStickers
-          : [...prev.unlockedStickers, modMeta.stickerId],
-        completedModules: prev.completedModules.includes(activeModule)
-          ? prev.completedModules
-          : [...prev.completedModules, activeModule],
-      }));
+      setProgress((prev) => {
+        const isFirstDailyClaim =
+          activeModule === dailyChallenge.moduleMeta.id &&
+          !prev.dailyCompletedDates.includes(dailyChallenge.dateKey);
+        const addedStars = isFirstDailyClaim ? dailyChallenge.bonusStars : 0;
+        const nextDailyDates = isFirstDailyClaim
+          ? [...prev.dailyCompletedDates, dailyChallenge.dateKey].slice(-30)
+          : prev.dailyCompletedDates;
+
+        return {
+          ...prev,
+          stars: prev.stars + addedStars,
+          unlockedStickers: prev.unlockedStickers.includes(modMeta.stickerId)
+            ? prev.unlockedStickers
+            : [...prev.unlockedStickers, modMeta.stickerId],
+          completedModules: prev.completedModules.includes(activeModule)
+            ? prev.completedModules
+            : [...prev.completedModules, activeModule],
+          dailyCompletedDates: nextDailyDates,
+        };
+      });
       audioEngine.speak(
-        `Hore! Kamu berhasil menyelesaikan modul ${modMeta.title} dan mendapatkan stiker baru!`,
+        bonusStarsToAdd > 0
+          ? `Hore! Kamu menyelesaikan Rekomendasi Hari Ini di modul ${modMeta.title} dan mendapat bonus ${bonusStarsToAdd} bintang serta stiker baru!`
+          : `Hore! Kamu berhasil menyelesaikan modul ${modMeta.title} dan mendapatkan stiker baru!`,
         { tone: 'excited' }
       );
     }
 
     setRoundSummaryModule(activeModule);
-  }, [activeModule]);
+  }, [
+    activeModule,
+    dailyChallenge.bonusStars,
+    dailyChallenge.dateKey,
+    dailyChallenge.moduleMeta.id,
+    progress.dailyCompletedDates,
+    progress.stars,
+  ]);
 
   const handleRepeatAudio = () => {
     audioEngine.unlock();
@@ -563,19 +637,55 @@ export default function App() {
             {useLandscapeSplit && (
               <aside
                 className={`col-span-3 flex flex-col items-center justify-between border-sky-200 bg-[#FFFDF7]/90 shadow-md min-h-0 overflow-y-auto scroll-touch ${
-                  isPhone ? 'rounded-2xl border-2 p-2' : 'rounded-3xl border-4 p-4'
+                  isPhone ? 'rounded-2xl border-2 p-2 gap-1' : 'rounded-3xl border-4 p-4 gap-2'
                 }`}
               >
-                <div className="text-center">
+                <div className="w-full text-center">
                   <p className="font-display text-sm lg:text-xl font-bold text-slate-800 leading-tight">
                     Halo, Sahabat RuBa!
                   </p>
                   <p className="text-[11px] lg:text-xs font-bold text-slate-500 mt-0.5 tabular-nums">
                     {progress.completedModules.length}/{MODULES.length} modul selesai
                   </p>
+
+                  {/* Compact Rekomendasi Hari Ini Launcher */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenModule(dailyChallenge.moduleMeta.id)}
+                    className={`mt-1.5 flex w-full items-center justify-between gap-1.5 rounded-xl border-2 text-left transition-transform active:scale-95 ${
+                      isDailyCompletedToday
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                        : 'border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-100 text-amber-950 hover:border-amber-400 shadow-sm'
+                    } ${isPhone ? 'px-2 py-1' : 'px-2.5 py-1.5'}`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <ModuleIllustration
+                        name={MODULE_PREVIEW_ICON[dailyChallenge.moduleMeta.id]}
+                        className={`${isPhone ? 'h-5 w-5' : 'h-7 w-7'} shrink-0`}
+                      />
+                      <div className="min-w-0">
+                        <span className="flex items-center gap-1 text-[9px] lg:text-[10px] font-black uppercase tracking-wide text-amber-700 leading-none">
+                          <Sparkles className="h-2.5 w-2.5 shrink-0" />
+                          <span>Hari Ini</span>
+                        </span>
+                        <span className="block font-display text-xs lg:text-sm font-bold truncate leading-tight">
+                          {dailyChallenge.moduleMeta.title}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-lg px-1.5 py-0.5 font-display text-[10px] lg:text-xs font-bold tabular-nums ${
+                        isDailyCompletedToday
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-amber-400 text-amber-950'
+                      }`}
+                    >
+                      {isDailyCompletedToday ? 'Selesai ✓' : `+${dailyChallenge.bonusStars} ★`}
+                    </span>
+                  </button>
                 </div>
 
-                <div className="my-auto flex items-end justify-center py-1">
+                <div className="my-auto flex items-end justify-center py-0.5">
                   <BobiCharacter
                     mood={bobiMood}
                     costume={progress.selectedCostume}
@@ -588,7 +698,7 @@ export default function App() {
                   type="button"
                   onClick={handleRepeatAudio}
                   className={`flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl sm:rounded-2xl border-2 border-b-4 border-amber-400 bg-amber-100 font-display font-bold text-amber-900 hover:bg-amber-200 active:translate-y-0.5 ${
-                    isPhone ? 'min-h-[38px] px-2 py-1 text-xs' : 'min-h-[44px] px-3 py-2 text-sm lg:text-base'
+                    isPhone ? 'min-h-[36px] px-2 py-1 text-xs' : 'min-h-[44px] px-3 py-2 text-sm lg:text-base'
                   }`}
                 >
                   <Volume2 className="h-4 w-4 lg:h-5 lg:w-5 shrink-0" />
@@ -603,8 +713,46 @@ export default function App() {
                 useLandscapeSplit ? 'col-span-9 grid-cols-3 overflow-y-auto scroll-touch' : 'grid-cols-2'
               } grid ${isPhone ? 'gap-2' : 'gap-3'} min-h-0 pr-1 pb-1 custom-scroll`}
             >
+              {!useLandscapeSplit && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenModule(dailyChallenge.moduleMeta.id)}
+                  className={`col-span-2 flex items-center justify-between gap-2 rounded-2xl border-2 px-3 py-2 text-left shadow-sm active:scale-98 ${
+                    isDailyCompletedToday
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                      : 'border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-100 text-amber-950'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ModuleIllustration
+                      name={MODULE_PREVIEW_ICON[dailyChallenge.moduleMeta.id]}
+                      className="h-9 w-9 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-amber-700">
+                        <Sparkles className="h-3 w-3 shrink-0" />
+                        <span>Rekomendasi Hari Ini</span>
+                      </span>
+                      <span className="block font-display text-base font-bold truncate">
+                        {dailyChallenge.moduleMeta.title}
+                      </span>
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-xl px-2.5 py-1 font-display text-xs font-bold tabular-nums ${
+                      isDailyCompletedToday
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-amber-400 text-amber-950'
+                    }`}
+                  >
+                    {isDailyCompletedToday ? 'Bonus Diklaim ✓' : `Bonus +${dailyChallenge.bonusStars} ★`}
+                  </span>
+                </button>
+              )}
+
               {MODULES.map((mod, idx) => {
                 const isDone = progress.completedModules.includes(mod.id);
+                const isDailyTarget = mod.id === dailyChallenge.moduleMeta.id;
                 return (
                   <motion.button
                     key={mod.id}
@@ -620,13 +768,19 @@ export default function App() {
                     whileHover={{ y: -4, scale: 1.02 }}
                     whileTap={{ scale: 0.96, y: 2 }}
                     onClick={() => handleOpenModule(mod.id)}
-                    className={`group relative flex flex-col items-center justify-center ${mod.cardBg} ${mod.cardBorder} text-center shadow-md focus-visible:outline-4 focus-visible:outline-sky-500 ${
+                    className={`group relative flex flex-col items-center justify-center ${mod.cardBg} ${mod.cardBorder} ${
+                      isDailyTarget
+                        ? isDailyCompletedToday
+                          ? 'ring-2 ring-emerald-400'
+                          : 'ring-4 ring-amber-400/90'
+                        : ''
+                    } text-center shadow-md focus-visible:outline-4 focus-visible:outline-sky-500 ${
                       isPhone
                         ? 'min-h-[clamp(5.25rem,22dvh,7.25rem)] gap-1 rounded-2xl border-2 border-b-4 p-2'
                         : 'min-h-[clamp(7rem,23dvh,9rem)] gap-1.5 rounded-3xl border-4 border-b-8 p-3.5'
                     }`}
                   >
-                    {/* Module Letter Code & Completed Mark */}
+                    {/* Module Letter Code & Completed / Daily Mark */}
                     <div className="flex w-full items-center justify-between px-0.5">
                       <span
                         className={`flex ${
@@ -635,11 +789,30 @@ export default function App() {
                       >
                         {mod.code}
                       </span>
-                      <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-500 truncate px-1">
-                        {mod.category} · 7 Tahap
-                      </span>
+                      {isDailyTarget ? (
+                        <span
+                          className={`flex items-center gap-0.5 text-[10px] sm:text-[11px] font-black truncate px-1 ${
+                            isDailyCompletedToday ? 'text-emerald-700' : 'text-amber-700'
+                          }`}
+                        >
+                          <Sparkles className="h-3 w-3 shrink-0" />
+                          <span>
+                            {isDailyCompletedToday
+                              ? 'Harian Selesai'
+                              : isPhone
+                              ? `Hari Ini +${dailyChallenge.bonusStars}★`
+                              : `Rekomendasi · +${dailyChallenge.bonusStars} ★`}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-500 truncate px-1">
+                          {mod.category} · 7 Tahap
+                        </span>
+                      )}
                       {isDone ? (
                         <CheckCircle2 className={`${isPhone ? 'h-4 w-4' : 'h-6 w-6'} shrink-0 text-emerald-600 fill-emerald-100`} />
+                      ) : isDailyTarget && !isDailyCompletedToday ? (
+                        <Star className={`${isPhone ? 'h-4 w-4' : 'h-5 w-5'} shrink-0 fill-amber-400 text-amber-500`} />
                       ) : (
                         <span className={`${isPhone ? 'h-4 w-4' : 'h-6 w-6'} shrink-0`} />
                       )}
@@ -790,6 +963,7 @@ export default function App() {
                     speech={bobiSpeech}
                     size={isPhone ? 'sm' : 'md'}
                     jumpTick={jumpTick}
+                    starBurstTick={starBurstTick}
                   />
                 </div>
                 <button
@@ -969,6 +1143,14 @@ export default function App() {
               </div>
             </div>
 
+            {dailyBonusAwarded > 0 && (
+              <div className="flex items-center gap-2 rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-100 to-yellow-100 px-4 py-2 text-xs sm:text-sm font-black text-amber-900 shadow-sm">
+                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-amber-600" />
+                <span>Bonus Level Harian! +{dailyBonusAwarded} Bintang Tambahan!</span>
+                <Star className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 fill-amber-400 text-amber-500" />
+              </div>
+            )}
+
             {newlyUnlockedCostumeName && (
               <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-2 text-xs sm:text-sm font-extrabold text-emerald-800">
                 Kostum Baru Terbuka di Lemari: {newlyUnlockedCostumeName}!
@@ -979,8 +1161,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
+                  audioEngine.playPop();
                   setRoundSummaryModule(null);
                   setNewlyUnlockedCostumeName(null);
+                  setDailyBonusAwarded(0);
                   setModuleSessionKey((k) => k + 1);
                 }}
                 className="min-h-[48px] flex-1 rounded-2xl border-2 border-b-4 border-sky-600 bg-sky-500 px-4 py-2.5 sm:py-3 font-display text-base sm:text-lg font-bold text-white hover:bg-sky-600 active:translate-y-0.5"
