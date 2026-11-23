@@ -4,7 +4,7 @@ export const NatureBackground: React.FC = () => {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-gradient-to-b from-sky-300 via-sky-100 to-amber-50"
+      className="pointer-events-none fixed inset-0 h-[100dvh] w-full z-0 overflow-hidden bg-gradient-to-b from-sky-300 via-sky-100 to-amber-50"
     >
       {/* Smiling Rotating Sun */}
       <div className="pointer-events-none absolute -top-6 right-8 sm:right-14 w-24 h-24 sm:w-36 sm:h-36">

@@ -288,7 +288,7 @@ export default function App() {
   ).length;
 
   return (
-    <div className="relative flex min-h-[100dvh] w-full flex-col overflow-x-hidden">
+    <div className="relative m-0 p-0 flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-gradient-to-b from-sky-300 via-sky-100 to-amber-50">
       {/* Living Nature Backdrop */}
       <NatureBackground />
 
