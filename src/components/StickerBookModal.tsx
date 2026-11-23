@@ -23,14 +23,14 @@ export const StickerBookModal: React.FC<StickerBookModalProps> = ({
   ).length;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
-      <div className="relative flex h-[90vh] max-h-[640px] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border-4 border-pink-300 bg-[#FFFDF7] shadow-2xl">
-        <div className="flex items-center justify-between border-b-2 border-pink-200 bg-pink-100/80 px-6 py-3.5">
-          <div>
-            <h2 className="font-display text-2xl sm:text-3xl font-bold text-pink-950">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-2 sm:p-4 backdrop-blur-sm">
+      <div className="relative flex h-[min(92dvh,640px)] max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border-4 border-pink-300 bg-[#FFFDF7] shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b-2 border-pink-200 bg-pink-100/80 px-4 py-2.5 sm:px-6 sm:py-3.5">
+          <div className="min-w-0 pr-2">
+            <h2 className="font-display text-xl sm:text-3xl font-bold text-pink-950 truncate">
               Buku Stiker RuBa ({unlockedCount}/{STICKERS.length})
             </h2>
-            <p className="text-sm font-bold text-pink-800">
+            <p className="text-xs sm:text-sm font-bold text-pink-800 truncate">
               Selesaikan modul belajar dan kumpulkan bintang untuk melengkapi semua stiker!
             </p>
           </div>
@@ -38,13 +38,13 @@ export const StickerBookModal: React.FC<StickerBookModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Tutup Buku Stiker"
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-pink-300 bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+            className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl border-2 border-pink-300 bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-600 transition-colors"
           >
-            <X className="h-7 w-7" />
+            <X className="h-6 w-6 sm:h-7 sm:w-7" />
           </button>
         </div>
 
-        <div className="grid flex-1 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 overflow-y-auto p-5 custom-scroll">
+        <div className="grid flex-1 min-h-0 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-3.5 p-3 sm:p-5 scroll-touch custom-scroll">
           {STICKERS.map((sticker) => {
             const isUnlocked =
               unlockedStickerIds.includes(sticker.id) ||

@@ -51,24 +51,32 @@ class RuBaAudioEngine {
 
   private ensureContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
-    if (!this.ctx) {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
+    try {
+      if (!this.ctx) {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (AudioCtx) {
+          this.ctx = new AudioCtx();
+        }
       }
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+      return this.ctx;
+    } catch {
+      return null;
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
-    }
-    return this.ctx;
   }
 
   public unlock() {
-    this.ensureContext();
-    if (!this.voicesLoaded) {
-      this.loadVoices();
+    try {
+      this.ensureContext();
+      if (!this.voicesLoaded) {
+        this.loadVoices();
+      }
+    } catch {
+      // Never block UI interaction if mobile WebView audio is restricted
     }
   }
 
@@ -173,6 +181,10 @@ class RuBaAudioEngine {
       };
 
       window.speechSynthesis.speak(utter);
+      // Safety timeout in case Android WebView speechSynthesis never fires onend
+      setTimeout(() => {
+        if (this.speakSeqId === seqId) this.notifySpeech(false, text);
+      }, Math.min(6000, Math.max(2000, text.length * 85)));
     } catch {
       setTimeout(() => {
         if (this.speakSeqId === seqId) this.notifySpeech(false, text);
@@ -248,7 +260,11 @@ class RuBaAudioEngine {
       this.activeAudioEl = null;
     }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis?.cancel?.();
+      } catch {
+        // Ignore WebView speechSynthesis cancel error
+      }
     }
     this.notifySpeech(false, '');
   }
@@ -260,25 +276,29 @@ class RuBaAudioEngine {
     volume: number = 0.14,
     delay: number = 0
   ) {
-    const ctx = this.ensureContext();
-    if (!ctx || freq <= 0) return;
+    try {
+      const ctx = this.ensureContext();
+      if (!ctx || freq <= 0) return;
 
-    const now = ctx.currentTime + delay;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+      const now = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, now);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
 
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(volume, now + 0.018);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, now + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
 
-    osc.start(now);
-    osc.stop(now + duration + 0.03);
+      osc.start(now);
+      osc.stop(now + duration + 0.03);
+    } catch {
+      // Never throw on restricted WebView audio playback
+    }
   }
 
   public playTap() {

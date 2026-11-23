@@ -135,13 +135,13 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
     quizChoices.length === 2
       ? 'grid-cols-2'
       : quizChoices.length === 3
-      ? 'grid-cols-1 sm:grid-cols-3'
+      ? 'grid-cols-3'
       : 'grid-cols-2 sm:grid-cols-4';
 
   return (
-    <div className="flex h-full w-full flex-col gap-3 min-h-0">
+    <div className="flex min-h-full w-full flex-col gap-2.5 sm:gap-3 min-h-0">
       {/* Mode Switcher */}
-      <div className="flex items-center justify-center gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={() => {
@@ -149,13 +149,13 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
             setIsPlaying(false);
             setTab('player');
           }}
-          className={`flex items-center gap-2 rounded-2xl border-2 px-5 py-2 text-base font-extrabold transition-transform active:scale-95 ${
+          className={`flex min-h-[44px] items-center gap-2 rounded-2xl border-2 px-3.5 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-base font-extrabold transition-transform active:scale-95 ${
             tab === 'player'
               ? 'border-violet-500 bg-violet-600 text-white shadow-md'
               : 'border-violet-200 bg-white text-violet-800 hover:bg-violet-50'
           }`}
         >
-          <Music className="h-5 w-5" />
+          <Music className="h-4 w-4 sm:h-5 sm:w-5" />
           <span>Putar & Nyanyi (7 Lagu)</span>
         </button>
 
@@ -169,25 +169,25 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
             setTriedWrong([]);
             setTab('quiz');
           }}
-          className={`flex items-center gap-2 rounded-2xl border-2 px-5 py-2 text-base font-extrabold transition-transform active:scale-95 ${
+          className={`flex min-h-[44px] items-center gap-2 rounded-2xl border-2 px-3.5 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-base font-extrabold transition-transform active:scale-95 ${
             tab === 'quiz'
               ? 'border-amber-500 bg-amber-500 text-white shadow-md'
               : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-50'
           }`}
         >
-          <Sparkles className="h-5 w-5" />
+          <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
           <span>Kuis Tebak Lagu (7 Tahap)</span>
         </button>
       </div>
 
       {tab === 'player' ? (
-        <div className="grid flex-1 grid-cols-1 lg:grid-cols-12 gap-4 min-h-0">
+        <div className="grid flex-1 grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 min-h-0">
           {/* 7-Song Selector List */}
-          <div className="lg:col-span-4 flex flex-col gap-2 rounded-3xl border-4 border-violet-200 bg-[#FFFDF7] p-3 shadow-md min-h-0">
-            <p className="px-2 text-sm font-extrabold text-violet-800">
+          <div className="md:col-span-4 flex flex-col gap-1.5 sm:gap-2 rounded-3xl border-4 border-violet-200 bg-[#FFFDF7] p-2.5 sm:p-3 shadow-md min-h-0 max-h-[150px] md:max-h-none">
+            <p className="px-2 text-xs sm:text-sm font-extrabold text-violet-800 shrink-0">
               Pilih Lagu Favoritmu (1–7):
             </p>
-            <div className="grid grid-cols-2 lg:grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scroll">
+            <div className="grid grid-cols-2 md:grid-cols-1 gap-1.5 sm:gap-2 scroll-touch pr-1 custom-scroll">
               {KIDS_SONGS.map((song, idx) => {
                 const active = song.id === selectedSong.id;
                 return (
@@ -195,18 +195,18 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
                     key={song.id}
                     type="button"
                     onClick={() => handleSelectSong(song)}
-                    className={`flex items-center gap-2.5 rounded-2xl border-2 p-2 text-left transition-transform active:scale-95 ${
+                    className={`flex min-h-[44px] items-center gap-2 rounded-2xl border-2 p-1.5 sm:p-2 text-left transition-transform active:scale-95 ${
                       active
                         ? 'border-violet-500 bg-violet-100 shadow-sm'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
-                    <ModuleIllustration name={song.illustration} className="h-10 w-10 shrink-0" />
+                    <ModuleIllustration name={song.illustration} className="h-8 w-8 sm:h-10 sm:w-10 shrink-0" />
                     <div className="min-w-0">
-                      <span className="block font-display text-sm sm:text-base font-bold text-slate-800 leading-tight truncate">
+                      <span className="block font-display text-xs sm:text-base font-bold text-slate-800 leading-tight truncate">
                         {idx + 1}. {song.title}
                       </span>
-                      <span className="text-[11px] font-extrabold text-violet-600">
+                      <span className="text-[10px] sm:text-[11px] font-extrabold text-violet-600">
                         {song.difficulty}
                       </span>
                     </div>
@@ -217,15 +217,15 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
           </div>
 
           {/* Interactive Karaoke Lyrics Stage */}
-          <div className="lg:col-span-8 flex flex-col justify-between rounded-3xl border-4 border-violet-200 bg-[#FFFDF7] p-5 shadow-md">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <ModuleIllustration name={selectedSong.illustration} className="h-14 w-14" />
-                <div>
-                  <h2 className="font-display text-2xl sm:text-3xl font-bold text-slate-800">
+          <div className="md:col-span-8 flex flex-col justify-between rounded-3xl border-4 border-violet-200 bg-[#FFFDF7] p-3 sm:p-5 shadow-md min-h-0">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 sm:gap-4">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <ModuleIllustration name={selectedSong.illustration} className="h-10 w-10 sm:h-14 sm:w-14 shrink-0" />
+                <div className="min-w-0">
+                  <h2 className="font-display text-lg sm:text-3xl font-bold text-slate-800 truncate">
                     {selectedSong.title}
                   </h2>
-                  <p className="text-sm font-bold text-violet-700">
+                  <p className="text-xs sm:text-sm font-bold text-violet-700 truncate">
                     Ikuti lirik yang menyala sesuai nada!
                   </p>
                 </div>
@@ -234,18 +234,18 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
               <button
                 type="button"
                 onClick={() => togglePlaySong(selectedSong, false)}
-                className={`flex items-center gap-2 rounded-2xl border-b-4 px-6 py-3 font-display text-lg font-bold text-white shadow-md transition-transform active:translate-y-0.5 ${
+                className={`flex min-h-[44px] shrink-0 items-center gap-2 rounded-2xl border-b-4 px-4 py-2 sm:px-6 sm:py-3 font-display text-sm sm:text-lg font-bold text-white shadow-md transition-transform active:translate-y-0.5 ${
                   isPlaying
                     ? 'border-rose-700 bg-rose-500 hover:bg-rose-600'
                     : 'border-emerald-700 bg-emerald-500 hover:bg-emerald-600'
                 }`}
               >
-                {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+                {isPlaying ? <Pause className="h-5 w-5 sm:h-6 sm:w-6" /> : <Play className="h-5 w-5 sm:h-6 sm:w-6" />}
                 <span>{isPlaying ? 'Berhenti' : 'Mainkan Lagu'}</span>
               </button>
             </div>
 
-            <div className="my-3 flex flex-1 flex-col items-center justify-center gap-2 rounded-2xl bg-violet-50/70 p-4 border-2 border-violet-100">
+            <div className="my-2 sm:my-3 flex flex-1 min-h-0 flex-col items-center justify-center gap-1.5 sm:gap-2 rounded-2xl bg-violet-50/70 p-3 sm:p-4 border-2 border-violet-100 scroll-touch">
               {selectedSong.lyrics.map((line, i) => {
                 const isActive =
                   isPlaying && elapsedSec >= line.startSec && elapsedSec < line.endSec;
@@ -255,10 +255,10 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
                     key={i}
                     className={`font-display text-center transition-transform duration-200 ${
                       isActive
-                        ? 'scale-110 text-2xl sm:text-3xl font-bold text-violet-700 bg-amber-200/80 px-4 py-1 rounded-xl shadow-sm'
+                        ? 'scale-105 sm:scale-110 text-lg sm:text-3xl font-bold text-violet-700 bg-amber-200/80 px-3 py-0.5 sm:px-4 sm:py-1 rounded-xl shadow-sm'
                         : isPast
-                        ? 'text-lg sm:text-xl font-semibold text-violet-400'
-                        : 'text-lg sm:text-xl font-bold text-slate-700'
+                        ? 'text-sm sm:text-xl font-semibold text-violet-400'
+                        : 'text-sm sm:text-xl font-bold text-slate-700'
                     }`}
                   >
                     {line.text}
@@ -270,28 +270,28 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
         </div>
       ) : (
         /* Kuis Tebak Judul Lagu - 7 Tahap Bertingkat */
-        <div className="flex flex-1 flex-col justify-between gap-4">
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-3xl border-4 border-amber-200 bg-[#FFFDF7] p-5 shadow-md">
+        <div className="flex flex-1 flex-col justify-between gap-2.5 sm:gap-4">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 sm:gap-3 rounded-3xl border-4 border-amber-200 bg-[#FFFDF7] p-3 sm:p-5 shadow-md">
             <StageHeader
               currentStep={quizIndex}
               totalSteps={KIDS_SONGS.length}
               difficulty={targetSong.difficulty}
             />
-            <h2 className="font-display text-2xl sm:text-3xl font-bold text-slate-800 text-center">
+            <h2 className="font-display text-[clamp(1.1rem,2.6vw,1.875rem)] font-bold text-slate-800 text-center leading-snug">
               Tebak Judul Lagu Apa Ini?
             </h2>
 
             <button
               type="button"
               onClick={() => togglePlaySong(targetSong, true)}
-              className="flex items-center gap-3 rounded-3xl border-4 border-b-8 border-violet-600 bg-violet-500 px-8 py-4 font-display text-xl font-bold text-white shadow-lg transition-transform hover:scale-105 active:translate-y-0.5"
+              className="flex min-h-[48px] items-center gap-2.5 sm:gap-3 rounded-3xl border-4 border-b-8 border-violet-600 bg-violet-500 px-5 py-2.5 sm:px-8 sm:py-4 font-display text-base sm:text-xl font-bold text-white shadow-lg transition-transform hover:scale-105 active:translate-y-0.5"
             >
-              {isPlaying ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7" />}
+              {isPlaying ? <Pause className="h-6 w-6 sm:h-7 sm:w-7" /> : <Play className="h-6 w-6 sm:h-7 sm:w-7" />}
               <span>{isPlaying ? 'Sedang Memutar Nada...' : 'Dengarkan Melodi Lagu'}</span>
             </button>
           </div>
 
-          <div className={`grid ${quizGridClass} gap-3`}>
+          <div className={`grid shrink-0 ${quizGridClass} gap-2 sm:gap-3`}>
             {quizChoices.map((song) => {
               const isSolvedHere = quizSolved && song.id === targetSong.id;
               const isWrong = triedWrong.includes(song.id);
@@ -301,7 +301,7 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
                   type="button"
                   onClick={() => handleGuessSong(song)}
                   disabled={quizSolved}
-                  className={`flex flex-col items-center justify-center gap-2 rounded-3xl border-4 border-b-8 p-3 transition-transform active:translate-y-0.5 ${
+                  className={`flex min-h-[76px] sm:min-h-[104px] flex-col items-center justify-center gap-1.5 sm:gap-2 rounded-2xl sm:rounded-3xl border-4 border-b-8 p-2 sm:p-3 transition-transform active:translate-y-0.5 ${
                     isSolvedHere
                       ? 'scale-105 border-emerald-500 bg-emerald-50 shadow-lg'
                       : isWrong
@@ -309,8 +309,8 @@ export const LaguModuleView: React.FC<LaguModuleViewProps> = ({
                       : 'border-sky-300 bg-white hover:-translate-y-1 shadow-md'
                   }`}
                 >
-                  <ModuleIllustration name={song.illustration} className="h-14 w-14 sm:h-16 sm:w-16" />
-                  <span className="font-display text-base sm:text-lg font-bold text-slate-800 text-center leading-tight">
+                  <ModuleIllustration name={song.illustration} className="h-10 w-10 sm:h-16 sm:w-16" />
+                  <span className="font-display text-xs sm:text-lg font-bold text-slate-800 text-center leading-tight">
                     {song.title}
                   </span>
                 </button>

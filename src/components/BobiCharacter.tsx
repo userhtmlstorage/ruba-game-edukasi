@@ -1,4 +1,5 @@
 import React from 'react';
+import { useViewportSize } from '../hooks/useViewportSize';
 import { BobiMood, CostumeId } from '../types';
 
 interface BobiCharacterProps {
@@ -16,12 +17,19 @@ export const BobiCharacter: React.FC<BobiCharacterProps> = ({
   size = 'md',
   jumpTick = 0,
 }) => {
-  const sizeClass =
-    size === 'lg'
-      ? 'w-40 h-40 sm:w-48 sm:h-48'
+  const viewport = useViewportSize();
+
+  const sizeClass = viewport.isPhone
+    ? size === 'lg'
+      ? 'w-[clamp(4.75rem,20dvh,8rem)] h-[clamp(4.75rem,20dvh,8rem)]'
       : size === 'sm'
-      ? 'w-24 h-24 sm:w-28 sm:h-28'
-      : 'w-32 h-32 sm:w-40 sm:h-40';
+      ? 'w-[clamp(3.25rem,13dvh,5rem)] h-[clamp(3.25rem,13dvh,5rem)]'
+      : 'w-[clamp(3.75rem,16dvh,6.25rem)] h-[clamp(3.75rem,16dvh,6.25rem)]'
+    : size === 'lg'
+    ? 'w-[clamp(7rem,24dvh,12rem)] h-[clamp(7rem,24dvh,12rem)]'
+    : size === 'sm'
+    ? 'w-[clamp(4rem,14dvh,7rem)] h-[clamp(4rem,14dvh,7rem)]'
+    : 'w-[clamp(5.25rem,20dvh,9.5rem)] h-[clamp(5.25rem,20dvh,9.5rem)]';
 
   const animClass =
     mood === 'dancing' || mood === 'happy'
@@ -30,17 +38,19 @@ export const BobiCharacter: React.FC<BobiCharacterProps> = ({
       ? 'animate-bobi-wobble'
       : 'animate-bobi-idle';
 
+  const showSpeech = Boolean(speech) && !(viewport.isPhone && viewport.height <= 335);
+
   return (
-    <div className="flex flex-col items-center gap-2">
-      {speech && (
+    <div className="pointer-events-none select-none flex flex-col items-center gap-1 sm:gap-2">
+      {showSpeech && speech && (
         <div
           key={speech}
-          className="relative max-w-[260px] rounded-2xl border-2 border-sky-300 bg-white px-4 py-2.5 text-center shadow-md transition-transform duration-200"
+          className="relative max-w-[min(240px,100%)] rounded-2xl border-2 border-sky-300 bg-white px-2.5 py-1 sm:px-3.5 sm:py-2 text-center shadow-md transition-transform duration-200"
         >
-          <p className="text-sm sm:text-base font-bold leading-snug text-slate-800">
+          <p className="text-[11px] sm:text-sm font-bold leading-snug text-slate-800 line-clamp-2 sm:line-clamp-3">
             {speech}
           </p>
-          <div className="absolute -bottom-2.5 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 border-b-2 border-r-2 border-sky-300 bg-white" />
+          <div className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b-2 border-r-2 border-sky-300 bg-white" />
         </div>
       )}
 

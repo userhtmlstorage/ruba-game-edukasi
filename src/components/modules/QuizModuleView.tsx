@@ -103,30 +103,30 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
 
   const gridColsClass =
     current.options.length === 2
-      ? 'grid-cols-1 sm:grid-cols-2'
+      ? 'grid-cols-2'
       : current.options.length === 4
       ? 'grid-cols-2 sm:grid-cols-4'
-      : 'grid-cols-1 sm:grid-cols-3';
+      : 'grid-cols-3';
 
   return (
-    <div className="flex h-full w-full flex-col justify-between gap-4">
+    <div className="flex min-h-full w-full flex-col justify-between gap-2 sm:gap-4">
       {/* Progress & Question Stage */}
-      <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border-4 border-amber-200 bg-[#FFFDF7] px-6 py-4 shadow-md">
+      <div className="flex flex-1 flex-col items-center justify-center rounded-2xl md:rounded-3xl border-2 md:border-4 border-amber-200 bg-[#FFFDF7] px-3 py-2 sm:px-6 sm:py-4 shadow-md">
         <StageHeader
           currentStep={index}
           totalSteps={questions.length}
           difficulty={current.difficulty}
         />
 
-        <h2 className="font-display text-center text-2xl sm:text-3xl font-bold text-slate-800 text-balance">
+        <h2 className="font-display text-center text-[clamp(1.1rem,2.6vw,1.875rem)] font-bold text-slate-800 text-balance leading-snug">
           {current.promptText}
         </h2>
 
         {/* Visual Showcase */}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
+        <div className="mt-2 sm:mt-4 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
           {current.visualCount && current.visualIllustration ? (
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex max-w-2xl flex-wrap items-center justify-center gap-2.5 rounded-2xl bg-sky-50 px-5 py-3 border-2 border-sky-200">
+            <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+              <div className="flex max-w-2xl flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 rounded-2xl bg-sky-50 px-3 py-2 sm:px-5 sm:py-3 border-2 border-sky-200">
                 {Array.from({ length: current.visualCount }).map((_, i) => {
                   const isCounted = tappedCounts.includes(i);
                   return (
@@ -134,7 +134,7 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
                       key={i}
                       type="button"
                       onClick={() => handleTapCountItem(i)}
-                      className={`relative flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl transition-transform duration-150 focus-visible:outline-4 focus-visible:outline-sky-500 ${
+                      className={`relative flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-2xl transition-transform duration-150 focus-visible:outline-4 focus-visible:outline-sky-500 ${
                         isCounted
                           ? 'scale-105 bg-amber-100 ring-4 ring-amber-400'
                           : 'bg-white hover:scale-105 active:scale-95 shadow-sm'
@@ -143,10 +143,10 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
                     >
                       <ModuleIllustration
                         name={current.visualIllustration!}
-                        className="h-11 w-11 sm:h-12 sm:w-12"
+                        className="h-8 w-8 sm:h-11 sm:w-11"
                       />
                       {isCounted && (
-                        <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-xs font-black text-white shadow">
+                        <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-amber-500 text-[10px] sm:text-xs font-black text-white shadow">
                           {tappedCounts.indexOf(i) + 1}
                         </span>
                       )}
@@ -155,39 +155,39 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
                 })}
               </div>
               {enableTapToCount && (
-                <span className="text-xs sm:text-sm font-bold text-sky-700">
+                <span className="text-[11px] sm:text-sm font-bold text-sky-700 text-center">
                   Ketuk gambar satu per satu untuk menghitung bersama!
                 </span>
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-center gap-5">
+            <div className="flex items-center justify-center gap-3 sm:gap-5">
               {current.visualSymbol && (
-                <div className="flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center rounded-3xl border-4 border-amber-300 bg-amber-100 font-display text-6xl font-bold text-amber-900 shadow-sm">
+                <div className="flex h-[clamp(4.25rem,17dvh,7rem)] w-[clamp(4.25rem,17dvh,7rem)] items-center justify-center rounded-3xl border-4 border-amber-300 bg-amber-100 font-display text-[clamp(2.25rem,8dvh,3.75rem)] font-bold text-amber-900 shadow-sm">
                   {current.visualSymbol}
                 </div>
               )}
               {current.visualIllustration && (
-                <div className="flex flex-col items-center gap-1 rounded-3xl border-2 border-sky-100 bg-sky-50/70 px-6 py-3">
+                <div className="flex flex-col items-center gap-1 rounded-3xl border-2 border-sky-100 bg-sky-50/70 px-4 py-2 sm:px-6 sm:py-3">
                   <ModuleIllustration
                     name={current.visualIllustration}
-                    className="h-24 w-24 sm:h-28 sm:w-28"
+                    className="h-[clamp(3.75rem,17dvh,7rem)] w-[clamp(3.75rem,17dvh,7rem)]"
                   />
                   {current.visualLabel && (
-                    <span className="text-sm font-extrabold text-slate-700">
+                    <span className="text-xs sm:text-sm font-extrabold text-slate-700">
                       {current.visualLabel}
                     </span>
                   )}
                 </div>
               )}
               {current.visualColorHex && !current.visualIllustration && (
-                <div className="flex items-center gap-4 rounded-3xl border-2 border-slate-200 bg-white px-6 py-3 shadow-sm">
+                <div className="flex items-center gap-3 sm:gap-4 rounded-3xl border-2 border-slate-200 bg-white px-4 py-2 sm:px-6 sm:py-3 shadow-sm">
                   <div
-                    className="h-20 w-20 rounded-2xl border-4 border-white shadow-md ring-2 ring-slate-300"
+                    className="h-14 w-14 sm:h-20 sm:w-20 rounded-2xl border-4 border-white shadow-md ring-2 ring-slate-300"
                     style={{ backgroundColor: current.visualColorHex }}
                   />
                   {current.visualLabel && (
-                    <span className="font-display text-2xl font-bold text-slate-800">
+                    <span className="font-display text-xl sm:text-2xl font-bold text-slate-800">
                       {current.visualLabel}
                     </span>
                   )}
@@ -199,7 +199,7 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
       </div>
 
       {/* Large Child-Friendly Answer Cards */}
-      <div className={`grid ${gridColsClass} gap-3.5`}>
+      <div className={`grid shrink-0 ${gridColsClass} gap-2 sm:gap-3.5`}>
         {current.options.map((opt, idx) => {
           const isTriedWrong = triedWrongIds.includes(opt.id);
           const isSolvedCorrect = solved && opt.isCorrect;
@@ -210,7 +210,7 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
               type="button"
               onClick={() => handleSelect(opt)}
               disabled={solved}
-              className={`group relative flex min-h-[112px] sm:min-h-[128px] flex-col items-center justify-center gap-2 rounded-3xl border-4 border-b-8 px-3 py-3 transition-transform duration-150 focus-visible:outline-4 focus-visible:outline-sky-500 ${
+              className={`group relative flex min-h-[clamp(3.6rem,17dvh,7.75rem)] flex-col items-center justify-center gap-1 sm:gap-2 rounded-2xl md:rounded-3xl border-2 md:border-4 border-b-4 md:border-b-8 px-2 py-2 sm:px-3 sm:py-3 transition-transform duration-150 focus-visible:outline-4 focus-visible:outline-sky-500 ${
                 wobbleId === opt.id ? 'animate-bobi-wobble' : ''
               } ${
                 isSolvedCorrect
@@ -220,13 +220,13 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
                   : 'border-sky-300 bg-white hover:-translate-y-1 hover:border-sky-400 active:translate-y-0.5 shadow-md'
               }`}
             >
-              <span className="absolute left-3 top-2.5 text-xs font-extrabold text-slate-400 tabular-nums">
+              <span className="absolute left-2.5 top-1.5 sm:left-3 sm:top-2.5 text-[11px] sm:text-xs font-extrabold text-slate-400 tabular-nums">
                 {idx + 1}
               </span>
 
               {opt.colorHex && (
                 <div
-                  className="h-14 w-20 sm:w-24 rounded-2xl border-4 border-white shadow ring-2 ring-slate-200"
+                  className="h-10 w-16 sm:h-14 sm:w-24 rounded-xl sm:rounded-2xl border-4 border-white shadow ring-2 ring-slate-200"
                   style={{ backgroundColor: opt.colorHex }}
                 />
               )}
@@ -234,29 +234,29 @@ export const QuizModuleView: React.FC<QuizModuleViewProps> = ({
               {opt.illustration && (
                 <ModuleIllustration
                   name={opt.illustration}
-                  className="h-14 w-14 sm:h-18 sm:w-18 transition-transform group-hover:scale-105"
+                  className="h-10 w-10 sm:h-16 sm:w-16 transition-transform group-hover:scale-105"
                 />
               )}
 
               {opt.bigSymbol && (
-                <span className="font-display text-5xl sm:text-6xl font-bold text-slate-800">
+                <span className="font-display text-[clamp(2rem,8dvh,3.75rem)] font-bold text-slate-800 leading-none">
                   {opt.bigSymbol}
                 </span>
               )}
 
               {!opt.bigSymbol && (
-                <span className="font-display text-lg sm:text-xl font-bold text-slate-800 leading-tight">
+                <span className="font-display text-[clamp(0.9rem,2vw,1.25rem)] font-bold text-slate-800 leading-tight text-center">
                   {opt.label}
                 </span>
               )}
 
               {isSolvedCorrect && (
-                <span className="text-xs sm:text-sm font-black text-emerald-700">
+                <span className="text-[11px] sm:text-sm font-black text-emerald-700">
                   Benar! +1 Bintang
                 </span>
               )}
               {isTriedWrong && !solved && (
-                <span className="text-xs font-bold text-amber-700">
+                <span className="text-[11px] sm:text-xs font-bold text-amber-700">
                   Yuk pilih yang lain!
                 </span>
               )}

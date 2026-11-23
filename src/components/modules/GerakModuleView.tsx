@@ -89,35 +89,35 @@ export const GerakModuleView: React.FC<GerakModuleViewProps> = ({
   if (!current) return null;
 
   return (
-    <div className="flex h-full w-full flex-col justify-between gap-4">
-      <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border-4 border-lime-300 bg-[#FFFDF7] p-5 shadow-md">
+    <div className="flex min-h-full w-full flex-col justify-between gap-2 sm:gap-4">
+      <div className="flex flex-1 flex-col items-center justify-center rounded-2xl md:rounded-3xl border-2 md:border-4 border-lime-300 bg-[#FFFDF7] p-2.5 sm:p-5 shadow-md">
         <StageHeader
           currentStep={index}
           totalSteps={GERAK_CHALLENGES.length}
           difficulty={current.difficulty}
         />
 
-        <h2 className="font-display text-2xl sm:text-3xl font-bold text-slate-800 text-center text-balance">
+        <h2 className="font-display text-[clamp(1.1rem,2.6vw,1.875rem)] font-bold text-slate-800 text-center text-balance leading-snug">
           {current.promptText}
         </h2>
 
         {/* Big Visual Target Counter */}
-        <div className="mt-5 flex items-center gap-6">
-          <div className="flex h-28 w-28 sm:h-32 sm:w-32 flex-col items-center justify-center rounded-3xl border-4 border-amber-300 bg-amber-100 shadow-inner">
-            <span className="text-xs font-extrabold text-amber-800">TARGET</span>
-            <span className="font-display text-6xl font-bold text-amber-900 tabular-nums">
+        <div className="mt-2.5 sm:mt-5 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
+          <div className="flex h-[clamp(4.75rem,19dvh,8rem)] w-[clamp(4.75rem,19dvh,8rem)] flex-col items-center justify-center rounded-3xl border-4 border-amber-300 bg-amber-100 shadow-inner">
+            <span className="text-[10px] sm:text-xs font-extrabold text-amber-800">TARGET</span>
+            <span className="font-display text-[clamp(2.25rem,9dvh,3.75rem)] font-bold text-amber-900 tabular-nums leading-none">
               {current.targetCount}
             </span>
           </div>
 
           {/* Progress Dots */}
-          <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-md">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 max-w-md">
             {Array.from({ length: current.targetCount }).map((_, i) => {
               const done = i < count;
               return (
                 <div
                   key={i}
-                  className={`flex h-13 w-13 sm:h-14 sm:w-14 items-center justify-center rounded-2xl border-4 font-display text-2xl font-bold transition-transform duration-150 ${
+                  className={`flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center rounded-2xl border-4 font-display text-lg sm:text-2xl font-bold transition-transform duration-150 ${
                     done
                       ? 'scale-110 border-emerald-500 bg-emerald-400 text-white shadow-md'
                       : 'border-slate-200 bg-slate-100 text-slate-400'
@@ -136,20 +136,20 @@ export const GerakModuleView: React.FC<GerakModuleViewProps> = ({
         type="button"
         onClick={triggerMove}
         disabled={solved}
-        className={`flex min-h-[124px] w-full items-center justify-center gap-4 rounded-3xl border-4 border-b-8 px-8 py-5 font-display text-3xl sm:text-4xl font-bold text-white shadow-lg transition-transform active:translate-y-1 ${
+        className={`flex min-h-[clamp(3.75rem,17dvh,7.75rem)] w-full shrink-0 items-center justify-center gap-2.5 sm:gap-4 rounded-2xl md:rounded-3xl border-2 md:border-4 border-b-4 md:border-b-8 px-4 py-2.5 sm:px-8 sm:py-5 font-display text-[clamp(1.1rem,2.8vw,2.25rem)] font-bold text-white shadow-lg transition-transform active:translate-y-1 ${
           solved
             ? 'border-emerald-600 bg-emerald-500'
             : 'border-lime-700 bg-lime-500 hover:bg-lime-600'
         }`}
       >
         {current.actionType === 'tepuk' ? (
-          <Hand className="h-11 w-11" />
+          <Hand className="h-8 w-8 sm:h-11 sm:w-11 shrink-0" />
         ) : current.actionType === 'lompat' ? (
-          <ArrowUpCircle className="h-11 w-11" />
+          <ArrowUpCircle className="h-8 w-8 sm:h-11 sm:w-11 shrink-0" />
         ) : (
-          <Sparkles className="h-11 w-11" />
+          <Sparkles className="h-8 w-8 sm:h-11 sm:w-11 shrink-0" />
         )}
-        <span>
+        <span className="text-center leading-tight">
           {solved
             ? 'Selesai! Hebat Sekali!'
             : `KETUK UNTUK ${current.actionLabel}! (${count}/${current.targetCount})`}

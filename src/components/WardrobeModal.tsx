@@ -35,15 +35,15 @@ export const WardrobeModal: React.FC<WardrobeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
-      <div className="relative flex h-[90vh] max-h-[640px] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border-4 border-amber-300 bg-[#FFFDF7] shadow-2xl">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-2 sm:p-4 backdrop-blur-sm">
+      <div className="relative flex h-[min(92dvh,640px)] max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border-4 border-amber-300 bg-[#FFFDF7] shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-amber-200 bg-amber-100/80 px-6 py-3.5">
-          <div>
-            <h2 className="font-display text-2xl sm:text-3xl font-bold text-amber-950">
+        <div className="flex shrink-0 items-center justify-between border-b-2 border-amber-200 bg-amber-100/80 px-4 py-2.5 sm:px-6 sm:py-3.5">
+          <div className="min-w-0 pr-2">
+            <h2 className="font-display text-xl sm:text-3xl font-bold text-amber-950 truncate">
               Lemari Kostum Bobi
             </h2>
-            <p className="text-sm font-bold text-amber-800">
+            <p className="text-xs sm:text-sm font-bold text-amber-800 truncate">
               Kumpulkan bintang belajar untuk membuka semua kostum seru!
             </p>
           </div>
@@ -51,32 +51,32 @@ export const WardrobeModal: React.FC<WardrobeModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Tutup Lemari Kostum"
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-amber-300 bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+            className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl border-2 border-amber-300 bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-600 transition-colors"
           >
-            <X className="h-7 w-7" />
+            <X className="h-6 w-6 sm:h-7 sm:w-7" />
           </button>
         </div>
 
         {/* Split Content */}
-        <div className="grid flex-1 grid-cols-1 md:grid-cols-12 gap-4 p-5 min-h-0">
+        <div className="grid flex-1 grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 p-3 sm:p-5 min-h-0 overflow-y-auto scroll-touch sm:overflow-hidden">
           {/* Left: Live Bobi Preview */}
-          <div className="md:col-span-5 flex flex-col items-center justify-center rounded-3xl border-2 border-sky-200 bg-gradient-to-b from-sky-100 to-emerald-100 p-4">
+          <div className="sm:col-span-5 flex flex-col items-center justify-center rounded-2xl sm:rounded-3xl border-2 border-sky-200 bg-gradient-to-b from-sky-100 to-emerald-100 p-3 sm:p-4">
             <BobiCharacter
               mood="happy"
               costume={selectedCostume}
-              size="lg"
+              size="md"
               speech={`Aku memakai ${currentCostume.name}!`}
             />
-            <div className="mt-3 flex items-center gap-2 rounded-2xl bg-white px-4 py-2 shadow-sm border border-amber-200">
-              <Star className="h-5 w-5 fill-amber-400 text-amber-500" />
-              <span className="font-display text-lg font-bold text-slate-800 tabular-nums">
+            <div className="mt-2 flex items-center gap-2 rounded-2xl bg-white px-3.5 py-1.5 shadow-sm border border-amber-200">
+              <Star className="h-4 w-4 sm:h-5 sm:w-5 fill-amber-400 text-amber-500" />
+              <span className="font-display text-sm sm:text-lg font-bold text-slate-800 tabular-nums">
                 Bintangmu: {totalStars}
               </span>
             </div>
           </div>
 
           {/* Right: Costume Cards */}
-          <div className="md:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto pr-1 custom-scroll">
+          <div className="sm:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 sm:min-h-0 sm:overflow-y-auto scroll-touch pr-1 pb-1">
             {COSTUMES.map((item) => {
               const unlocked = totalStars >= item.starsRequired;
               const isEquipped = selectedCostume === item.id;

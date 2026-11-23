@@ -31,13 +31,13 @@ export const ChildSafeAdBannerSlot: React.FC = () => {
   return (
     <aside
       aria-label="Ruang Iklan Ramah Anak"
-      className="flex h-12 w-full shrink-0 items-center justify-between rounded-2xl border border-slate-200/80 bg-white/80 px-4 text-xs font-bold text-slate-500 shadow-xs pointer-events-none"
+      className="flex h-9 sm:h-11 w-full shrink-0 items-center justify-between rounded-2xl border border-slate-200/80 bg-white/80 px-3 sm:px-4 text-[11px] sm:text-xs font-bold text-slate-500 shadow-xs pointer-events-none"
     >
-      <div className="flex items-center gap-2">
-        <ShieldCheck className="h-4 w-4 text-emerald-600" />
-        <span>Zona Aman Banner AdMob (Hanya di Pintu Masuk · Jauh dari Tombol Belajar)</span>
+      <div className="flex items-center gap-2 truncate">
+        <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+        <span className="truncate">Zona Aman Banner AdMob (Hanya di Pintu Masuk · Jauh dari Tombol Belajar)</span>
       </div>
-      <span className="hidden sm:inline text-[11px] font-semibold text-slate-400">
+      <span className="hidden md:inline shrink-0 text-[11px] font-semibold text-slate-400">
         TEST_MODE Aktif · Rating G · Non-Personalisasi
       </span>
     </aside>
@@ -65,9 +65,9 @@ export const TestInterstitialModal: React.FC<TestInterstitialModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Pratinjau Iklan Uji Coba Ramah Anak"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-3 sm:p-6 backdrop-blur-sm"
     >
-      <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-3xl border-4 border-sky-200 bg-white p-6 text-center shadow-2xl">
+      <div className="flex max-h-[92dvh] w-full max-w-md flex-col items-center gap-3 sm:gap-4 rounded-3xl border-4 border-sky-200 bg-white p-4 sm:p-6 text-center shadow-2xl scroll-touch">
         <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-700">
           <ShieldCheck className="h-4 w-4" />
           <span>IKLAN UJI COBA · RAMAH KELUARGA (RATING G)</span>
